@@ -22,7 +22,7 @@ public class AutoMapping_Tests
             configuration.CreateAutoAttributeMaps(typeof(MyAutoMapKeyClass1));
             configuration.CreateAutoAttributeMaps(typeof(MyAutoMapKeyClass2));
             configuration.AddCollectionMappers();
-        });
+        }, loggerFactory: null);
 
         _mapper = config.CreateMapper();
     }

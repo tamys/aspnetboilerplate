@@ -75,7 +75,7 @@ public class RedisOnlineClientStore : IOnlineClientStore, ISingletonDependency
             return false;
         }
 
-        var onlineClient = JsonSerializer.Deserialize<OnlineClient>(clientValue.ToString());
+        var onlineClient = JsonSerializer.Deserialize<OnlineClient>((string)clientValue);
         clientAction?.Invoke(onlineClient);
         return true;
     }
@@ -85,7 +85,7 @@ public class RedisOnlineClientStore : IOnlineClientStore, ISingletonDependency
         var database = GetDatabase();
         var clientsEntries = await database.HashGetAllAsync(_clientStoreKey);
         return clientsEntries
-            .Select(entry => JsonSerializer.Deserialize<OnlineClient>(entry.Value))
+            .Select(entry => JsonSerializer.Deserialize<OnlineClient>((string)entry.Value))
             .Cast<IOnlineClient>()
             .ToImmutableList();
     }
@@ -106,7 +106,7 @@ public class RedisOnlineClientStore : IOnlineClientStore, ISingletonDependency
 
         return clientValues
             .Where(clientValue => !clientValue.IsNullOrEmpty)
-            .Select(clientValue => JsonSerializer.Deserialize<OnlineClient>(clientValue.ToString()))
+            .Select(clientValue => JsonSerializer.Deserialize<OnlineClient>((string)clientValue))
             .Cast<IOnlineClient>()
             .ToImmutableList();
     }
@@ -132,7 +132,7 @@ public class RedisOnlineClientStore : IOnlineClientStore, ISingletonDependency
             return (false, null);
         }
 
-        var client = JsonSerializer.Deserialize<OnlineClient>(clientJson.ToString());
+        var client = JsonSerializer.Deserialize<OnlineClient>((string)clientJson);
         var userIdentifier = client.ToUserIdentifierOrNull();
 
         var userConnectionsKey = userIdentifier != null

@@ -23,7 +23,7 @@ public class AutoMapper_Inheritance_Tests
             configuration.CreateAutoAttributeMaps(typeof(MyAutoMapKeyClass7));
             configuration.AddCollectionMappers();
             configuration.CreateMap<MyAutoMapKeyClass1, MyAutoMapKeyClass2>().EqualityComparison((x, y) => x.Id == y.Id);
-        });
+        }, loggerFactory: null);
 
         _mapper = config.CreateMapper();
     }

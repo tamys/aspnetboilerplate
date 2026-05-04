@@ -44,7 +44,7 @@ public class AbpAutoMapperModule : AbpModule
             }
         };
 
-        var config = new MapperConfiguration(configurer);
+        var config = new MapperConfiguration(configurer, loggerFactory: null);
         IocManager.IocContainer.Register(
             Component.For<IConfigurationProvider>().Instance(config).LifestyleSingleton()
         );

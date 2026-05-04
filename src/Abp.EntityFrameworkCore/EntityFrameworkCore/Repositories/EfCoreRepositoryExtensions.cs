@@ -124,22 +124,22 @@ public static class EfCoreRepositoryExtensions
     }
 
     /// <summary>
-    /// Updates all matching entities using given updateExpression for given predicate
+    /// Updates all matching entities using given setPropertyCalls for given predicate
     /// </summary>
     /// <typeparam name="TEntity">Entity type</typeparam>
     /// <typeparam name="TPrimaryKey">Primary key type</typeparam>
     /// <param name="repository">Repository</param>
-    /// <param name="updateExpression">Update expression</param>
+    /// <param name="setPropertyCalls">Set property calls action</param>
     /// <param name="predicate">Predicate to filter entities</param>
     /// <returns></returns>
     public static async Task<int> BatchUpdateAsync<TEntity, TPrimaryKey>(
         [NotNull] this IRepository<TEntity, TPrimaryKey> repository,
-        [NotNull] Expression<Func<SetPropertyCalls<TEntity>, SetPropertyCalls<TEntity>>> updateExpression,
+        [NotNull] Action<UpdateSettersBuilder<TEntity>> setPropertyCalls,
         [NotNull] Expression<Func<TEntity, bool>> predicate)
         where TEntity : Entity<TPrimaryKey>
     {
         Check.NotNull(repository, nameof(repository));
-        Check.NotNull(updateExpression, nameof(updateExpression));
+        Check.NotNull(setPropertyCalls, nameof(setPropertyCalls));
         Check.NotNull(predicate, nameof(predicate));
 
         var query = (await repository.GetAllAsync()).IgnoreQueryFilters();
@@ -149,24 +149,24 @@ public static class EfCoreRepositoryExtensions
 
         query = query.Where(filterExpression);
 
-        return await query.ExecuteUpdateAsync(updateExpression);
+        return await query.ExecuteUpdateAsync(setPropertyCalls);
     }
 
     /// <summary>
-    /// Updates all matching entities using given updateExpression for given predicate
+    /// Updates all matching entities using given setPropertyCalls for given predicate
     /// </summary>
     /// <typeparam name="TEntity">Entity type</typeparam>
     /// <param name="repository">Repository</param>
-    /// <param name="updateExpression">Update expression</param>
+    /// <param name="setPropertyCalls">Set property calls action</param>
     /// <param name="predicate">Predicate to filter entities</param>
     /// <returns></returns>
     public static async Task<int> BatchUpdateAsync<TEntity>(
         [NotNull] this IRepository<TEntity> repository,
-        [NotNull] Expression<Func<SetPropertyCalls<TEntity>, SetPropertyCalls<TEntity>>> updateExpression,
+        [NotNull] Action<UpdateSettersBuilder<TEntity>> setPropertyCalls,
         [NotNull] Expression<Func<TEntity, bool>> predicate)
         where TEntity : Entity<int>
     {
-        return await repository.BatchUpdateAsync<TEntity, int>(updateExpression, predicate);
+        return await repository.BatchUpdateAsync<TEntity, int>(setPropertyCalls, predicate);
     }
 
     private static Expression<Func<TEntity, bool>> GetFilterExpressionOrNull<TEntity, TPrimaryKey>(
