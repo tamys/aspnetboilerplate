@@ -1,0 +1,25 @@
+{
+  "id": "FEAT-004",
+  "type": "feat",
+  "description": "Add a TimeProvider-based IClockProvider implementation alongside the existing ones. .NET 8+ introduced System.TimeProvider as the standard time abstraction. This feature adds a new TimeProviderClockProvider class that bridges ABP's IClockProvider to .NET's TimeProvider, allowing users who inject a custom TimeProvider (e.g., for testing with FakeTimeProvider) to have it integrated with ABP's Clock system. This does NOT replace existing providers - it adds a new option. Also register TimeProvider.System as a default singleton in the DI container so existing .NET libraries that depend on TimeProvider work correctly.",
+  "status": "in_progress",
+  "steps": [
+    "Create a new file src/Abp/Timing/TimeProviderClockProvider.cs that implements IClockProvider by delegating to a TimeProvider instance. The Now property calls timeProvider.GetLocalNow().DateTime, Kind returns DateTimeKind.Local, SupportsMultipleTimezone returns true, and Normalize adjusts DateTimeKind to match",
+    "Create a new file src/Abp/Timing/UtcTimeProviderClockProvider.cs that implements IClockProvider by delegating to TimeProvider.GetUtcNow().UtcDateTime with Kind=Utc and SupportsMultipleTimezone=true",
+    "Add TimeProvider.System as a static property to ClockProviders (src/Abp/Timing/ClockProviders.cs) like: public static TimeProviderClockProvider TimeProviderLocal { get; } = new TimeProviderClockProvider(TimeProvider.System); and public static UtcTimeProviderClockProvider TimeProviderUtc { get; } = new UtcTimeProviderClockProvider(TimeProvider.System);",
+    "In src/Abp/AbpKernelModule.cs (or the appropriate module initialization), ensure TimeProvider.System is available. Since this project uses Castle Windsor (not MS DI directly), just make the new clock providers available as options - no DI registration needed in the core Abp project.",
+    "Run 'dotnet build Abp.sln' to verify no compilation errors"
+  ],
+  "acceptance_criteria": [
+    "A TimeProviderClockProvider class exists that implements IClockProvider using TimeProvider",
+    "A UtcTimeProviderClockProvider class exists that implements IClockProvider using TimeProvider for UTC",
+    "ClockProviders exposes the new providers as static properties",
+    "Existing Clock.Provider behavior is unchanged (default remains UnspecifiedClockProvider)",
+    "'dotnet build Abp.sln' succeeds"
+  ],
+  "verification": [
+    "Run 'dotnet build Abp.sln' and confirm zero build errors"
+  ],
+  "blocked_reason": null,
+  "findings": ""
+}
