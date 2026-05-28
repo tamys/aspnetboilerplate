@@ -1,6 +1,7 @@
 ﻿// Taken from https://github.com/samuelneff/MimeTypeMap
 
 using System;
+using System.Collections.Frozen;
 using System.Collections.Generic;
 using System.Linq;
 using Abp.Dependency;
@@ -12,14 +13,29 @@ namespace Abp.MimeTypes
         protected const string Dot = ".";
         protected const string QuestionMark = "?";
 
-        protected readonly Lazy<IDictionary<string, string>> MappingDictionary;
+        protected readonly Lazy<FrozenDictionary<string, string>> MappingDictionary;
+
+        private Dictionary<string, string> _mutableMappings;
 
         public MimeTypeMap()
         {
-            MappingDictionary = new Lazy<IDictionary<string, string>>(BuildMappings);
+            MappingDictionary = new Lazy<FrozenDictionary<string, string>>(BuildMappings);
         }
 
-        protected virtual Dictionary<string, string> BuildMappings()
+        private Dictionary<string, string> GetMutableMappings()
+        {
+            if (_mutableMappings == null)
+            {
+                _mutableMappings = MappingDictionary.Value.ToDictionary(
+                    kvp => kvp.Key,
+                    kvp => kvp.Value,
+                    MappingDictionary.Value.Comparer);
+            }
+
+            return _mutableMappings;
+        }
+
+        protected virtual FrozenDictionary<string, string> BuildMappings()
         {
             var mappings = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
             {
@@ -741,7 +757,7 @@ namespace Abp.MimeTypes
                 }
             }
 
-            return mappings;
+            return mappings.ToFrozenDictionary(mappings.Comparer);
         }
 
         /// <summary>
@@ -773,6 +789,11 @@ namespace Abp.MimeTypes
             if (indexQuestionMark != -1)
             {
                 str = str.Remove(indexQuestionMark);
+            }
+
+            if (_mutableMappings != null)
+            {
+                return _mutableMappings.TryGetValue(str, out mimeType);
             }
 
             return MappingDictionary.Value.TryGetValue(str, out mimeType);
@@ -823,6 +844,11 @@ namespace Abp.MimeTypes
             if (mimeType.StartsWith(Dot))
             {
                 throw new ArgumentException("Requested mime type is not valid: " + mimeType);
+            }
+
+            if (_mutableMappings != null)
+            {
+                return _mutableMappings.TryGetValue(mimeType, out extension);
             }
 
             return MappingDictionary.Value.TryGetValue(mimeType, out extension);
@@ -885,12 +911,13 @@ namespace Abp.MimeTypes
                 throw new ArgumentException("Extensions should start with dot");
             }
 
-            if (MappingDictionary.Value.ContainsKey(mimeType))
+            if ((_mutableMappings != null && _mutableMappings.ContainsKey(mimeType)) ||
+                (_mutableMappings == null && MappingDictionary.Value.ContainsKey(mimeType)))
             {
                 throw new ArgumentException("An item with the same mimeType has already been added");
             }
 
-            MappingDictionary.Value.Add(mimeType, extension);
+            GetMutableMappings().Add(mimeType, extension);
         }
 
         /// <summary>
@@ -911,9 +938,10 @@ namespace Abp.MimeTypes
                 throw new ArgumentException("MIME type should not start with dot");
             }
 
-            if (MappingDictionary.Value.ContainsKey(mimeType))
+            if ((_mutableMappings != null && _mutableMappings.ContainsKey(mimeType)) ||
+                (_mutableMappings == null && MappingDictionary.Value.ContainsKey(mimeType)))
             {
-                MappingDictionary.Value.Remove(mimeType);
+                GetMutableMappings().Remove(mimeType);
             }
         }
 
@@ -936,7 +964,8 @@ namespace Abp.MimeTypes
                 throw new ArgumentNullException(nameof(mimeType));
             }
 
-            if (MappingDictionary.Value.ContainsKey(extension))
+            if ((_mutableMappings != null && _mutableMappings.ContainsKey(extension)) ||
+                (_mutableMappings == null && MappingDictionary.Value.ContainsKey(extension)))
             {
                 throw new ArgumentException("An item with the same extension has already been added");
             }
@@ -951,7 +980,7 @@ namespace Abp.MimeTypes
                 throw new ArgumentException("Extensions should start with dot");
             }
 
-            MappingDictionary.Value.Add(extension, mimeType);
+            GetMutableMappings().Add(extension, mimeType);
         }
 
         /// <summary>
@@ -972,9 +1001,10 @@ namespace Abp.MimeTypes
                 throw new ArgumentException("Extensions should start with dot");
             }
 
-            if (MappingDictionary.Value.ContainsKey(extension))
+            if ((_mutableMappings != null && _mutableMappings.ContainsKey(extension)) ||
+                (_mutableMappings == null && MappingDictionary.Value.ContainsKey(extension)))
             {
-                MappingDictionary.Value.Remove(extension);
+                GetMutableMappings().Remove(extension);
             }
         }
     }
