@@ -1,0 +1,23 @@
+{
+  "id": "FEAT-002",
+  "type": "refactor",
+  "description": "Remove the legacy Microsoft.AspNetCore.Http.Abstractions 2.3.0 package reference from Abp.AspNetCore.PerRequestRedisCache. Since the project targets net10.0, IHttpContextAccessor and related types are built into the ASP.NET Core shared framework and this package reference is unnecessary. Also remove Microsoft.IdentityModel.JsonWebTokens from Abp.FluentMigrator since it is not used in any code files in that project (likely a stale/incorrect transitive dependency reference).",
+  "status": "in_progress",
+  "steps": [
+    "Remove the PackageReference for Microsoft.AspNetCore.Http.Abstractions Version 2.3.0 from src/Abp.AspNetCore.PerRequestRedisCache/Abp.AspNetCore.PerRequestRedisCache.csproj",
+    "Add a FrameworkReference to Microsoft.AspNetCore.App in src/Abp.AspNetCore.PerRequestRedisCache/Abp.AspNetCore.PerRequestRedisCache.csproj (since the project uses Microsoft.NET.Sdk not Microsoft.NET.Sdk.Web, it needs the explicit framework reference to access ASP.NET Core types)",
+    "Remove the PackageReference for Microsoft.IdentityModel.JsonWebTokens Version 8.15.0 (or 8.18.0 if already updated in FEAT-001) from src/Abp.FluentMigrator/Abp.FluentMigrator.csproj - it has no usages in that project's code",
+    "Run 'dotnet build Abp.sln' to confirm both projects still compile correctly"
+  ],
+  "acceptance_criteria": [
+    "src/Abp.AspNetCore.PerRequestRedisCache/Abp.AspNetCore.PerRequestRedisCache.csproj has no reference to Microsoft.AspNetCore.Http.Abstractions",
+    "src/Abp.AspNetCore.PerRequestRedisCache project builds successfully and can resolve IHttpContextAccessor from the shared framework",
+    "src/Abp.FluentMigrator/Abp.FluentMigrator.csproj has no reference to Microsoft.IdentityModel.JsonWebTokens",
+    "'dotnet build Abp.sln' succeeds"
+  ],
+  "verification": [
+    "Run 'dotnet build Abp.sln' and confirm zero build errors"
+  ],
+  "blocked_reason": null,
+  "findings": ""
+}
