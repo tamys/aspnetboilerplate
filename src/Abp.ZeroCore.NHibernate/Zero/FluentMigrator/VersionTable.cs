@@ -1,18 +1,16 @@
+using FluentMigrator.Runner.Conventions;
+using FluentMigrator.Runner.Initialization;
 using FluentMigrator.Runner.VersionTableInfo;
-using System;
+
+using Microsoft.Extensions.Options;
 
 namespace Abp.Zero.FluentMigrator;
 
 [VersionTableMetaData]
 public class VersionTable : DefaultVersionTableMetaData
 {
-    [Obsolete("Use dependency injection")]
-    public VersionTable() : base()
-    {
-    }
-
-    [Obsolete("Use dependency injection")]
-    public VersionTable(string schemaName) : base(schemaName)
+    public VersionTable(IConventionSet conventionSet, IOptions<RunnerOptions> runnerOptions)
+        : base(conventionSet, runnerOptions)
     {
     }
 
