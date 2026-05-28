@@ -2,7 +2,7 @@
   "id": "FEAT-005",
   "type": "refactor",
   "description": "Replace usages of ConcurrentDictionary with FrozenDictionary (System.Collections.Frozen) where the dictionary is populated once at startup/initialization and then only read afterward. The primary candidate is the MimeTypeMap class (src/Abp/MimeTypes/MimeTypeMap.cs) which has large static lookup dictionaries of MIME types to extensions that are populated in a static constructor and never modified. FrozenDictionary provides optimized read performance for these scenarios.",
-  "status": "in_progress",
+  "status": "completed",
   "steps": [
     "In src/Abp/MimeTypes/MimeTypeMap.cs, the BuildMappings() method returns a Dictionary<string, string> which is wrapped in a Lazy<IDictionary<string,string>>. Once evaluated, it is never modified - only read via TryGetValue. Change the return type of BuildMappings() to FrozenDictionary<string, string> and change MappingDictionary field type accordingly. Call .ToFrozenDictionary() at the end of BuildMappings() instead of returning the regular dictionary directly.",
     "Add 'using System.Collections.Frozen;' to the file",
@@ -18,5 +18,5 @@
     "Run 'dotnet build Abp.sln' and confirm zero build errors"
   ],
   "blocked_reason": null,
-  "findings": ""
+  "findings": "FrozenDictionary does not implement IDictionary<TKey, TValue>, only IReadOnlyDictionary. The MimeTypeMap class has Add/Remove mutation methods in its interface, so a mutable fallback Dictionary is lazily materialized only when mutations are needed. The read-hot path (TryGetValue/ContainsKey for lookup) uses the optimized FrozenDictionary directly."
 }
