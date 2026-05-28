@@ -32,6 +32,7 @@ namespace Abp.Timing
 
         public TimeProviderClockProvider(TimeProvider timeProvider)
         {
+            ArgumentNullException.ThrowIfNull(timeProvider);
             _timeProvider = timeProvider;
         }
     }

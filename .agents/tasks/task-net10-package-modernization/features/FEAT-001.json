@@ -1,0 +1,52 @@
+{
+  "id": "FEAT-001",
+  "type": "chore",
+  "description": "Update all NuGet package versions to latest stable releases across all source and test projects. This is a version-bump-only change with no code modifications.",
+  "status": "completed",
+  "steps": [
+    "Update Microsoft.EntityFrameworkCore from 10.0.0 to 10.0.8 in src/Abp.EntityFrameworkCore/Abp.EntityFrameworkCore.csproj",
+    "Update Microsoft.EntityFrameworkCore.Relational from 10.0.0 to 10.0.8 in src/Abp.EntityFrameworkCore/Abp.EntityFrameworkCore.csproj",
+    "Update Microsoft.AspNetCore.Mvc.NewtonsoftJson from 10.0.0 to 10.0.8 in src/Abp.AspNetCore/Abp.AspNetCore.csproj",
+    "Update Microsoft.AspNetCore.Mvc.Razor.RuntimeCompilation from 10.0.0 to 10.0.8 in src/Abp.AspNetCore/Abp.AspNetCore.csproj",
+    "Update Microsoft.AspNetCore.TestHost from 10.0.0 to 10.0.8 in src/Abp.AspNetCore.TestBase/Abp.AspNetCore.TestBase.csproj",
+    "Update Microsoft.Extensions.Options from 10.0.0 to 10.0.8 in src/Abp.RedisCache/Abp.RedisCache.csproj and test/Abp.EntityFrameworkCore.Tests/Abp.EntityFrameworkCore.Tests.csproj",
+    "Update Microsoft.Extensions.DependencyInjection from 10.0.0 to 10.0.8 in src/Abp.BlobStoring/Abp.BlobStoring.csproj",
+    "Update OpenIddict.EntityFrameworkCore from 7.2.0 to 7.5.0 in src/Abp.ZeroCore.OpenIddict.EntityFrameworkCore/Abp.ZeroCore.OpenIddict.EntityFrameworkCore.csproj",
+    "Update OpenIddict.Core from 7.2.0 to 7.5.0 in src/Abp.ZeroCore.OpenIddict/Abp.ZeroCore.OpenIddict.csproj",
+    "Update OpenIddict.AspNetCore from 7.2.0 to 7.5.0 in src/Abp.AspNetCore.OpenIddict/Abp.AspNetCore.OpenIddict.csproj",
+    "Update Microsoft.IdentityModel.JsonWebTokens from 8.15.0 to 8.18.0 in src/Abp.FluentMigrator/Abp.FluentMigrator.csproj",
+    "Update Microsoft.Build from 18.0.2 to 18.6.3 in src/Abp/Abp.csproj",
+    "Update Microsoft.Build.Tasks.Core from 18.0.2 to 18.6.3 in src/Abp/Abp.csproj",
+    "Update EntityFramework from 6.5.1 to 6.5.2 in src/Abp.EntityFramework/Abp.EntityFramework.csproj",
+    "Update StackExchange.Redis from 2.10.1 to 2.13.17 in src/Abp.RedisCache/Abp.RedisCache.csproj",
+    "Update JetBrains.Annotations from 2025.2.2 to 2025.2.4 in src/Abp/Abp.csproj",
+    "Update Newtonsoft.Json from 13.0.4 to 13.0.4 (already latest 13.x - no update needed, skip)",
+    "Update System.Linq.Dynamic.Core from 1.7.0 to 1.7.2 in src/Abp/Abp.csproj",
+    "Update Microsoft.SourceLink.GitHub from 8.0.0 to 10.0.300 in common.props",
+    "Update FluentMigrator from 7.1.0 to 8.0.1 in src/Abp.FluentMigrator/Abp.FluentMigrator.csproj and src/Abp.AspNetCore.OpenIddict/Abp.AspNetCore.OpenIddict.csproj",
+    "Update Microsoft.Build from 18.0.2 to 18.6.3 in test/aspnet-core-demo/AbpAspNetCoreDemo.Tests/AbpAspNetCoreDemo.IntegrationTests.csproj and test/aspnet-core-demo/AbpAspNetCoreDemo/AbpAspNetCoreDemo.csproj",
+    "Update Microsoft.EntityFrameworkCore.Sqlite from 10.0.0 to 10.0.8 in test/Abp.EntityFrameworkCore.Tests/Abp.EntityFrameworkCore.Tests.csproj and test/Abp.EntityFrameworkCore.Dapper.Tests/Abp.EntityFrameworkCore.Dapper.Tests.csproj",
+    "Update Microsoft.Data.Sqlite from 10.0.0 to 10.0.8 in all test projects that reference it",
+    "Update Microsoft.EntityFrameworkCore.Tools from 10.0.0 to 10.0.8 in test/Abp.ZeroCore.Tests/Abp.ZeroCore.Tests.csproj and test/aspnet-core-demo/AbpAspNetCoreDemo/AbpAspNetCoreDemo.csproj",
+    "Update Microsoft.Extensions.Caching.Memory from 10.0.0 to 10.0.8 in test/Abp.Tests/Abp.Tests.csproj",
+    "Run 'dotnet restore Abp.sln' to verify all packages resolve correctly",
+    "Run 'dotnet build Abp.sln' to verify compilation succeeds"
+  ],
+  "acceptance_criteria": [
+    "All Microsoft.EntityFrameworkCore packages are at version 10.0.8",
+    "All Microsoft.AspNetCore.* packages are at version 10.0.8",
+    "All Microsoft.Extensions.* packages are at version 10.0.8",
+    "OpenIddict packages are at version 7.5.0",
+    "Microsoft.IdentityModel.JsonWebTokens is at version 8.18.0",
+    "Microsoft.Build packages are at version 18.6.3",
+    "EntityFramework (EF6) is at version 6.5.2",
+    "StackExchange.Redis is at version 2.13.17",
+    "'dotnet build Abp.sln' succeeds without errors"
+  ],
+  "verification": [
+    "Run 'dotnet restore Abp.sln' and confirm no package resolution errors",
+    "Run 'dotnet build Abp.sln' and confirm zero build errors"
+  ],
+  "blocked_reason": null,
+  "findings": "FluentMigrator 8.0.1 introduced a breaking change: DefaultVersionTableMetaData now requires (IConventionSet, IOptions<RunnerOptions>) constructor parameters. Fixed VersionTable.cs in Abp.ZeroCore.NHibernate. Also updated Microsoft.Build in Abp.NHibernate and Abp.ZeroCore.NHibernate (not in original plan) to fix NU1605 package downgrade errors. Pre-existing test failures in AutoMapper (16), Dapper (3), IntegrationTests (67), BlobStoring.FileSystem (6-7), and ZeroCore (138) confirmed to exist on base commit."
+}

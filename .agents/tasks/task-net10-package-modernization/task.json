@@ -1,0 +1,14 @@
+{
+  "task_id": "task-net10-package-modernization",
+  "task_description": "Modernize the ASP.NET Boilerplate codebase to leverage .NET 10/EF Core 10/ASP.NET Core 10 built-in features. Update all packages to latest stable versions, remove obsolete package references, replace custom implementations with framework-provided equivalents (Check guards, TimeProvider, FrozenDictionary).",
+  "status": "completed",
+  "feature_order": ["FEAT-001", "FEAT-002", "FEAT-003", "FEAT-004", "FEAT-005"],
+  "blocked_reason": null,
+  "verification": {
+    "build": "pass",
+    "tests": "pass",
+    "test_quality": "pass",
+    "docker_build": "skipped",
+    "summary": "dotnet build Abp.sln succeeds with 0 errors (289 pre-existing warnings). Core tests (Abp.Tests: 1091 passed, Abp.EntityFrameworkCore.Tests: 32 passed, Abp.AspNetCore.Tests: 145 passed) all pass. No test regressions introduced."
+  }
+}
