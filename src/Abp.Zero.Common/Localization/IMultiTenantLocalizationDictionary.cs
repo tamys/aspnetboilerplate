@@ -9,11 +9,26 @@ namespace Abp.Localization
     public interface IMultiTenantLocalizationDictionary : ILocalizationDictionary
     {
         /// <summary>
+        /// Gets a <see cref="string"/> for given <paramref name="value"/>.
+        /// </summary>
+        /// <param name="tenantId">TenantId or null for host.</param>
+        /// <param name="value">Value to get key</param>
+        /// <returns>The key or null</returns>
+        string TryGetKey(int? tenantId, string value);
+
+        /// <summary>
         /// Gets a <see cref="LocalizedString"/>.
         /// </summary>
         /// <param name="tenantId">TenantId or null for host.</param>
         /// <param name="name">Localization key name.</param>
         LocalizedString GetOrNull(int? tenantId, string name);
+
+        /// <summary>
+        /// Gets a <see cref="LocalizedString"/>.
+        /// </summary>
+        /// <param name="tenantId">TenantId or null for host.</param>
+        /// <param name="names">List of localization key names.</param>
+        IReadOnlyList<LocalizedString> GetStringsOrNull(int? tenantId, List<string> names);
 
         /// <summary>
         /// Gets all <see cref="LocalizedString"/>s.

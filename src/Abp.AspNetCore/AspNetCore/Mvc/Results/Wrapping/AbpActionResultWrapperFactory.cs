@@ -1,30 +1,36 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Filters;
 
-namespace Abp.AspNetCore.Mvc.Results.Wrapping
+namespace Abp.AspNetCore.Mvc.Results.Wrapping;
+
+public class AbpActionResultWrapperFactory : IAbpActionResultWrapperFactory
 {
-    public class AbpActionResultWrapperFactory : IAbpActionResultWrapperFactory
+    public IAbpActionResultWrapper CreateFor(FilterContext context)
     {
-        public IAbpActionResultWrapper CreateFor(ResultExecutingContext actionResult)
+        Check.NotNull(context, nameof(context));
+
+        switch (context)
         {
-            Check.NotNull(actionResult, nameof(actionResult));
+            case ResultExecutingContext resultExecutingContext when resultExecutingContext.Result is ObjectResult:
+                return new AbpObjectActionResultWrapper();
 
-            if (actionResult.Result is ObjectResult)
-            {
-                return new AbpObjectActionResultWrapper(actionResult.HttpContext.RequestServices);
-            }
-
-            if (actionResult.Result is JsonResult)
-            {
+            case ResultExecutingContext resultExecutingContext when resultExecutingContext.Result is JsonResult:
                 return new AbpJsonActionResultWrapper();
-            }
 
-            if (actionResult.Result is EmptyResult)
-            {
+            case ResultExecutingContext resultExecutingContext when resultExecutingContext.Result is EmptyResult:
                 return new AbpEmptyActionResultWrapper();
-            }
 
-            return new NullAbpActionResultWrapper();
+            case PageHandlerExecutedContext pageHandlerExecutedContext when pageHandlerExecutedContext.Result is ObjectResult:
+                return new AbpObjectActionResultWrapper();
+
+            case PageHandlerExecutedContext pageHandlerExecutedContext when pageHandlerExecutedContext.Result is JsonResult:
+                return new AbpJsonActionResultWrapper();
+
+            case PageHandlerExecutedContext pageHandlerExecutedContext when pageHandlerExecutedContext.Result is EmptyResult:
+                return new AbpEmptyActionResultWrapper();
+
+            default:
+                return new NullAbpActionResultWrapper();
         }
     }
 }

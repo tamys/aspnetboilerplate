@@ -1,0 +1,36 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+	<Import Project="..\..\common.props" />
+	<Import Project="..\..\configureawait.props" />
+
+	<PropertyGroup>
+		<TargetFramework>net10.0</TargetFramework>
+		<GenerateDocumentationFile>true</GenerateDocumentationFile>
+		<AssemblyName>Abp.BlobStoring.FileSystem</AssemblyName>
+		<PackageId>Abp.BlobStoring.FileSystem</PackageId>
+		<PackageTags>asp.net;asp.net mvc;boilerplate;application framework;web framework;framework;domain driven design;blob storing; file system</PackageTags>
+		<GenerateAssemblyTitleAttribute>false</GenerateAssemblyTitleAttribute>
+		<GenerateAssemblyDescriptionAttribute>false</GenerateAssemblyDescriptionAttribute>
+		<GenerateAssemblyConfigurationAttribute>false</GenerateAssemblyConfigurationAttribute>
+		<GenerateAssemblyCompanyAttribute>false</GenerateAssemblyCompanyAttribute>
+		<GenerateAssemblyProductAttribute>false</GenerateAssemblyProductAttribute>
+		<GenerateAssemblyCopyrightAttribute>false</GenerateAssemblyCopyrightAttribute>
+		<PackageRequireLicenseAcceptance>False</PackageRequireLicenseAcceptance>
+		<GeneratePackageOnBuild>False</GeneratePackageOnBuild>
+		<RootNamespace>Abp</RootNamespace>
+		<Description>Abp.BlobStoring.FileSystem</Description>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<ProjectReference Include="..\Abp.BlobStoring\Abp.BlobStoring.csproj" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<PackageReference Include="Polly" Version="8.6.4" />
+	</ItemGroup>
+
+	<ItemGroup>
+	  <PackageReference Update="Fody" Version="6.9.3" />
+	</ItemGroup>
+
+</Project>

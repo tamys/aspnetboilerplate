@@ -79,6 +79,21 @@ namespace Abp.EntityFramework.Repositories
             return Table;
         }
 
+        public override IQueryable<TEntity> GetAllReadonly()
+        {
+            return GetAll().AsNoTracking();
+        }
+
+        public override Task<IQueryable<TEntity>> GetAllAsync()
+        {
+            return Task.FromResult(Table.AsQueryable());
+        }
+        
+        public override Task<IQueryable<TEntity>> GetAllReadonlyAsync()
+        {
+            return Task.FromResult(Table.AsNoTracking().AsQueryable());
+        }
+
         public override IQueryable<TEntity> GetAllIncluding(params Expression<Func<TEntity, object>>[] propertySelectors)
         {
             if (propertySelectors.IsNullOrEmpty())
@@ -96,29 +111,84 @@ namespace Abp.EntityFramework.Repositories
             return query;
         }
 
+        public override async Task<IQueryable<TEntity>> GetAllIncludingAsync(params Expression<Func<TEntity, object>>[] propertySelectors)
+        {
+            if (propertySelectors.IsNullOrEmpty())
+            {
+                return await GetAllAsync();
+            }
+
+            var query = await GetAllAsync();
+
+            foreach (var propertySelector in propertySelectors)
+            {
+                query = query.Include(propertySelector);
+            }
+
+            return query;
+        }
+
+        public override IQueryable<TEntity> GetAllReadonlyIncluding(params Expression<Func<TEntity, object>>[] propertySelectors)
+        {
+            if (propertySelectors.IsNullOrEmpty())
+            {
+                return GetAllReadonly();
+            }
+
+            var query = GetAllReadonly();
+
+            foreach (var propertySelector in propertySelectors)
+            {
+                query = query.Include(propertySelector);
+            }
+
+            return query;
+        }
+
+        public override async Task<IQueryable<TEntity>> GetAllReadonlyIncludingAsync(params Expression<Func<TEntity, object>>[] propertySelectors)
+        {
+            if (propertySelectors.IsNullOrEmpty())
+            {
+                return await GetAllReadonlyAsync();
+            }
+            var query = await GetAllReadonlyAsync();
+
+            foreach (var propertySelector in propertySelectors)
+            {
+                query = query.Include(propertySelector);
+            }
+
+            return query;
+        }
+
         public override async Task<List<TEntity>> GetAllListAsync()
         {
-            return await GetAll().ToListAsync();
+            var query = await GetAllAsync();
+            return await query.ToListAsync(CancellationTokenProvider.Token);
         }
 
         public override async Task<List<TEntity>> GetAllListAsync(Expression<Func<TEntity, bool>> predicate)
         {
-            return await GetAll().Where(predicate).ToListAsync();
+            var query = await GetAllAsync();
+            return await query.Where(predicate).ToListAsync(CancellationTokenProvider.Token);
         }
 
         public override async Task<TEntity> SingleAsync(Expression<Func<TEntity, bool>> predicate)
         {
-            return await GetAll().SingleAsync(predicate);
+            var query = await GetAllAsync();
+            return await query.SingleAsync(predicate, CancellationTokenProvider.Token);
         }
 
         public override async Task<TEntity> FirstOrDefaultAsync(TPrimaryKey id)
         {
-            return await GetAll().FirstOrDefaultAsync(CreateEqualityExpressionForId(id));
+            var query = await GetAllAsync();
+            return await query.FirstOrDefaultAsync(CreateEqualityExpressionForId(id), CancellationTokenProvider.Token);
         }
 
         public override async Task<TEntity> FirstOrDefaultAsync(Expression<Func<TEntity, bool>> predicate)
         {
-            return await GetAll().FirstOrDefaultAsync(predicate);
+            var query = await GetAllAsync();
+            return await query.FirstOrDefaultAsync(predicate, CancellationTokenProvider.Token);
         }
 
         public override TEntity Insert(TEntity entity)
@@ -149,7 +219,7 @@ namespace Abp.EntityFramework.Repositories
 
             if (entity.IsTransient())
             {
-                await Context.SaveChangesAsync();
+                await Context.SaveChangesAsync(CancellationTokenProvider.Token);
             }
 
             return entity.Id;
@@ -173,7 +243,7 @@ namespace Abp.EntityFramework.Repositories
 
             if (entity.IsTransient())
             {
-                await Context.SaveChangesAsync();
+                await Context.SaveChangesAsync(CancellationTokenProvider.Token);
             }
 
             return entity.Id;
@@ -216,22 +286,26 @@ namespace Abp.EntityFramework.Repositories
 
         public override async Task<int> CountAsync()
         {
-            return await GetAll().CountAsync();
+            var query = await GetAllReadonlyAsync();
+            return await query.CountAsync(CancellationTokenProvider.Token);
         }
 
         public override async Task<int> CountAsync(Expression<Func<TEntity, bool>> predicate)
         {
-            return await GetAll().Where(predicate).CountAsync();
+            var query = await GetAllReadonlyAsync();
+            return await query.CountAsync(predicate, CancellationTokenProvider.Token);
         }
 
         public override async Task<long> LongCountAsync()
         {
-            return await GetAll().LongCountAsync();
+            var query = await GetAllReadonlyAsync();
+            return await query.LongCountAsync(CancellationTokenProvider.Token);
         }
 
         public override async Task<long> LongCountAsync(Expression<Func<TEntity, bool>> predicate)
         {
-            return await GetAll().Where(predicate).LongCountAsync();
+            var query = await GetAllReadonlyAsync();
+            return await query.LongCountAsync(predicate, CancellationTokenProvider.Token);
         }
 
         protected virtual void AttachIfNot(TEntity entity)
@@ -247,6 +321,9 @@ namespace Abp.EntityFramework.Repositories
             return Context;
         }
 
+        public async Task<DbContext> GetDbContextAsync()
+            => await _dbContextProvider.GetDbContextAsync(MultiTenancySide);
+
         public Task EnsureCollectionLoadedAsync<TProperty>(TEntity entity, Expression<Func<TEntity, IEnumerable<TProperty>>> collectionExpression,
             CancellationToken cancellationToken) where TProperty : class
         {
@@ -261,10 +338,30 @@ namespace Abp.EntityFramework.Repositories
                 .LoadAsync(cancellationToken);
         }
 
+        public void EnsureCollectionLoaded<TProperty>(TEntity entity, Expression<Func<TEntity, IEnumerable<TProperty>>> collectionExpression,
+            CancellationToken cancellationToken) where TProperty : class
+        {
+            var expression = collectionExpression.Body as MemberExpression;
+            if (expression == null)
+            {
+                throw new AbpException($"Given {nameof(collectionExpression)} is not a {typeof(MemberExpression).FullName}");
+            }
+
+            Context.Entry(entity)
+                .Collection(expression.Member.Name)
+                .Load();
+        }
+
         public Task EnsurePropertyLoadedAsync<TProperty>(TEntity entity, Expression<Func<TEntity, TProperty>> propertyExpression,
             CancellationToken cancellationToken) where TProperty : class
         {
             return Context.Entry(entity).Reference(propertyExpression).LoadAsync(cancellationToken);
+        }
+
+        public void EnsurePropertyLoaded<TProperty>(TEntity entity, Expression<Func<TEntity, TProperty>> propertyExpression,
+            CancellationToken cancellationToken) where TProperty : class
+        {
+            Context.Entry(entity).Reference(propertyExpression).Load();
         }
     }
 }

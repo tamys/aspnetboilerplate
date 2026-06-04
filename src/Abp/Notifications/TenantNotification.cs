@@ -25,12 +25,7 @@ namespace Abp.Notifications
         /// Notification data.
         /// </summary>
         public NotificationData Data { get; set; }
-
-        /// <summary>
-        /// Gets or sets the type of the entity.
-        /// </summary>
-        public Type EntityType { get; set; }
-
+        
         /// <summary>
         /// Name of the entity type (including namespaces).
         /// </summary>

@@ -4,6 +4,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.RegularExpressions;
 using Abp.Collections.Extensions;
+using JetBrains.Annotations;
 
 namespace Abp.Extensions
 {
@@ -89,7 +90,7 @@ namespace Abp.Extensions
         {
             if (str == null)
             {
-                throw new ArgumentNullException("str");
+                throw new ArgumentNullException(nameof(str));
             }
 
             if (str.StartsWith(c.ToString(culture), ignoreCase, culture))
@@ -103,6 +104,7 @@ namespace Abp.Extensions
         /// <summary>
         /// Indicates whether this string is null or an System.String.Empty string.
         /// </summary>
+        [ContractAnnotation("null => true")]
         public static bool IsNullOrEmpty(this string str)
         {
             return string.IsNullOrEmpty(str);
@@ -111,6 +113,7 @@ namespace Abp.Extensions
         /// <summary>
         /// indicates whether this string is null, empty, or consists only of white-space characters.
         /// </summary>
+        [ContractAnnotation("null => true")]
         public static bool IsNullOrWhiteSpace(this string str)
         {
             return string.IsNullOrWhiteSpace(str);
@@ -125,7 +128,7 @@ namespace Abp.Extensions
         {
             if (str == null)
             {
-                throw new ArgumentNullException("str");
+                throw new ArgumentNullException(nameof(str));
             }
 
             if (str.Length < len)
@@ -148,7 +151,7 @@ namespace Abp.Extensions
         /// Gets index of nth occurence of a char in a string.
         /// </summary>
         /// <param name="str">source string to be searched</param>
-        /// <param name="c">Char to search in <see cref="str"/></param>
+        /// <param name="c">Char to search in <paramref name="str"/></param>
         /// <param name="n">Count of the occurence</param>
         public static int NthIndexOf(this string str, char c, int n)
         {
@@ -188,7 +191,7 @@ namespace Abp.Extensions
                 return null;
             }
 
-            if (str == string.Empty)
+            if (string.IsNullOrEmpty(str))
             {
                 return string.Empty;
             }
@@ -223,7 +226,7 @@ namespace Abp.Extensions
                 return null;
             }
 
-            if (str == string.Empty)
+            if (string.IsNullOrEmpty(str))
             {
                 return string.Empty;
             }
@@ -253,7 +256,7 @@ namespace Abp.Extensions
         {
             if (str == null)
             {
-                throw new ArgumentNullException("str");
+                throw new ArgumentNullException(nameof(str));
             }
 
             if (str.Length < len)
@@ -511,7 +514,7 @@ namespace Abp.Extensions
                 return null;
             }
 
-            if (str == string.Empty || maxLength == 0)
+            if (string.IsNullOrEmpty(str) || maxLength == 0)
             {
                 return string.Empty;
             }
@@ -527,6 +530,25 @@ namespace Abp.Extensions
             }
 
             return str.Left(maxLength - postfix.Length) + postfix;
+        }
+
+        /// <summary>
+        /// Converts given string to a byte array using <see cref="Encoding.UTF8"/> encoding.
+        /// </summary>
+        public static byte[] GetBytes(this string str)
+        {
+            return str.GetBytes(Encoding.UTF8);
+        }
+
+        /// <summary>
+        /// Converts given string to a byte array using the given <paramref name="encoding"/>
+        /// </summary>
+        public static byte[] GetBytes([NotNull] this string str, [NotNull] Encoding encoding)
+        {
+            Check.NotNull(str, nameof(str));
+            Check.NotNull(encoding, nameof(encoding));
+
+            return encoding.GetBytes(str);
         }
     }
 }

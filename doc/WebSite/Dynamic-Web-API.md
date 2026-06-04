@@ -67,7 +67,7 @@ We can override the configuration after the ForAll method. Example:
     Configuration.Modules.AbpWebApi().DynamicApiControllerBuilder
         .ForAll<IApplicationService>(Assembly.GetAssembly(typeof(SimpleTaskSystemApplicationModule)), "tasksystem")
         .Build();
-
+    
     Configuration.Modules.AbpWebApi().DynamicApiControllerBuilder
         .For<ITaskAppService>("tasksystem/task")
         .ForMethod("CreateTask").DontCreateAction().Build();
@@ -119,10 +119,10 @@ interface:
     {
         [HttpGet]
         GetTasksOutput GetTasks(GetTasksInput input);
-
+    
         [HttpPut]
         void UpdateTask(UpdateTaskInput input);
-
+    
         [HttpPost]
         void CreateTask(CreateTaskInput input);
     }
@@ -257,6 +257,17 @@ scripts on your page:
     <script src="~/Abp/Framework/scripts/libs/angularjs/abp.ng.js"></script>
     <script src="~/api/AbpServiceProxies/GetAll?type=angular"></script>
 
+#### Minification
+
+ASP.NET Boilerplate dynamic api, as well as localization javascript can also
+be returned minifed, by setting the *minify** flag:
+
+    <script src="~/api/AbpServiceProxies/GetAll?minify=true"></script>
+    <script src="~/api/AbpServiceProxies/GetAll?type=angular&minify=true"></script>
+    <script src="/api/AbpServiceProxies/Get?name=tasksystem/task&minify=true" type="text/javascript"></script>
+
+Default minification value is **false**.
+
 ### Enable/Disable
 
 If you used the **ForAll** method as defined above, then you can use
@@ -290,6 +301,16 @@ also handle exceptions yourself since [exception
 handling](Handling-Exceptions.md) will be disabled (DontWrapResult
 attribute has WrapOnError properties that can be used to enable the handling
 and wrapping for exceptions).
+
+#### WrapResultFilters
+
+You can also implement a custom ```IWrapResultFilter``` and decide result wrapping conditionally by the current request URL. A custom result wrapping filter must be added to ```WrapResultFilters``` as shown below;
+
+````c#
+Configuration.Modules.AbpWebCommon().WrapResultFilters.Add(new MyWrapResultFilter());
+````
+
+This approach can be useful if you don't have access the source code of the Controllers and can't used result wrapping attributes on the Controllers.
 
 Note: Dynamic JavaScript proxies can understand if the result is unwrapped
 and will run properly in either case.

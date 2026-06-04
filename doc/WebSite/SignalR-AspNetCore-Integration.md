@@ -4,8 +4,6 @@ The [Abp.AspNetCore.SignalR](http://www.nuget.org/packages/Abp.AspNetCore.Signal
 package makes it easier to use **ASP.NET Core SignalR** in ASP.NET Boilerplate-based
 applications.
 
-> NOTE: This package is currently in preview. If you have a problem, please write to the GitHub issues: https://github.com/aspnetboilerplate/aspnetboilerplate/issues/new
-
 ### Installation
 
 #### Server-Side
@@ -37,9 +35,9 @@ Then use the **AddSignalR** and **UseSignalR** methods in your Startup class:
     
             public void Configure(IApplicationBuilder app)
             {
-                app.UseSignalR(routes =>
+                app.UseEndpoints(endpoints =>
                 {
-                    routes.MapHub<AbpCommonHub>("/signalr");
+                    endpoints.MapHub<AbpCommonHub>("/signalr");
                 });
             }
         }
@@ -81,14 +79,24 @@ connecting:
     <script>
         abp.signalr = abp.signalr || {};
         abp.signalr.autoConnect = false;
+        abp.signalr.reconnectTime = 5000;
+        abp.signalr.maxTries = 8;
+        abp.signalr.withUrlOptions = {};
+        abp.signalr.increaseReconnectTime = function (time) { //anytime reconnection request gets fail abp will increase the time to wait before next request with using that function. 
+            return time * 2; //(default is twice of previous time)
+        };
     </script>
+
+This is mostly useful when you need to register your custom events to SignalR becasue if you register your events after `abp.signalr.connect()` is called, your events will not be triggered.
+
+Note: See [Official SignalR documentation](https://learn.microsoft.com/en-us/aspnet/core/signalr/configuration?view=aspnetcore-6.0&tabs=javascript#configure-additional-options) for withUrlOptions values.
 
 In this case, you can call the **abp.signalr.connect()** function manually
 whenever you need to connect to the server.
 
 ASP.NET Boilerplate also **automatically reconnects** to the server
 (from the client) when the client disconnects, if
-**abp.signalr.autoConnect** is true.
+**abp.signalr.autoConnect** is true. At most **abp.signalr.maxTries** times it tries to connect to the server. It starts to wait for **abp.signalr.reconnectTime** ms, then each time connection fails, it waits 2 times longer. (for example: 5000ms - 10000ms - 20000ms...). (You can override **abp.signalr.increaseReconnectTime** to change increasing method)
 
 The **"abp.signalr.connected"** global event is triggered when the client
 connects to the server. You can register to this event to take actions
@@ -155,7 +163,7 @@ that we want to add a Hub to our application:
 
 <!-- -->
 
-    routes.MapHub<MyChatHub>("/signalr-myChatHub"); // Prefix with '/signalr'
+    endpoints.MapHub<MyChatHub>("/signalr-myChatHub"); // Prefix with '/signalr'
 
 We implemented the **ITransientDependency** interface to simply register our hub to the
 [dependency injection](/Pages/Documents/Dependency-Injection) system

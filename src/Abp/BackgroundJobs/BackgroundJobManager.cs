@@ -2,10 +2,10 @@
 using System.Reflection;
 using System.Threading.Tasks;
 using Abp.Dependency;
+using Abp.Domain.Uow;
 using Abp.Events.Bus;
 using Abp.Events.Bus.Exceptions;
 using Abp.Json;
-using Abp.Threading;
 using Abp.Threading.BackgroundWorkers;
 using Abp.Threading.Timers;
 using Abp.Timing;
@@ -16,10 +16,10 @@ namespace Abp.BackgroundJobs
     /// <summary>
     /// Default implementation of <see cref="IBackgroundJobManager"/>.
     /// </summary>
-    public class BackgroundJobManager : PeriodicBackgroundWorkerBase, IBackgroundJobManager, ISingletonDependency
+    public class BackgroundJobManager : AsyncPeriodicBackgroundWorkerBase, IBackgroundJobManager, ISingletonDependency
     {
         public IEventBus EventBus { get; set; }
-        
+
         /// <summary>
         /// Interval between polling jobs from <see cref="IBackgroundJobStore"/>.
         /// Default value: 5000 (5 seconds).
@@ -28,6 +28,7 @@ namespace Abp.BackgroundJobs
 
         private readonly IIocResolver _iocResolver;
         private readonly IBackgroundJobStore _store;
+        private readonly IBackgroundJobConfiguration _backgroundJobConfiguration;
 
         static BackgroundJobManager()
         {
@@ -40,10 +41,12 @@ namespace Abp.BackgroundJobs
         public BackgroundJobManager(
             IIocResolver iocResolver,
             IBackgroundJobStore store,
-            AbpTimer timer)
+            IBackgroundJobConfiguration backgroundJobConfiguration,
+            AbpAsyncTimer timer)
             : base(timer)
         {
             _store = store;
+            _backgroundJobConfiguration = backgroundJobConfiguration;
             _iocResolver = iocResolver;
 
             EventBus = NullEventBus.Instance;
@@ -51,24 +54,65 @@ namespace Abp.BackgroundJobs
             Timer.Period = JobPollPeriod;
         }
 
-        public async Task<string> EnqueueAsync<TJob, TArgs>(TArgs args, BackgroundJobPriority priority = BackgroundJobPriority.Normal, TimeSpan? delay = null)
-            where TJob : IBackgroundJob<TArgs>
+        public virtual async Task<string> EnqueueAsync<TJob, TArgs>(TArgs args,
+            BackgroundJobPriority priority = BackgroundJobPriority.Normal, TimeSpan? delay = null)
+            where TJob : IBackgroundJobBase<TArgs>
         {
-            var jobInfo = new BackgroundJobInfo
-            {
-                JobType = typeof(TJob).AssemblyQualifiedName,
-                JobArgs = args.ToJsonString(),
-                Priority = priority
-            };
+            string jobInfoId;
 
-            if (delay.HasValue)
+            using (var uow = UnitOfWorkManager.Begin())
             {
-                jobInfo.NextTryTime = Clock.Now.Add(delay.Value);
+                var jobInfo = new BackgroundJobInfo
+                {
+                    JobType = typeof(TJob).AssemblyQualifiedName,
+                    JobArgs = args.ToJsonString(),
+                    Priority = priority
+                };
+
+                if (delay.HasValue)
+                {
+                    jobInfo.NextTryTime = Clock.Now.Add(delay.Value);
+                }
+
+                await _store.InsertAsync(jobInfo);
+                await CurrentUnitOfWork.SaveChangesAsync();
+
+                jobInfoId = jobInfo.Id.ToString();
+                await uow.CompleteAsync();
             }
 
-            await _store.InsertAsync(jobInfo);
+            return jobInfoId;
+        }
 
-            return jobInfo.Id.ToString();
+        public virtual string Enqueue<TJob, TArgs>(TArgs args,
+            BackgroundJobPriority priority = BackgroundJobPriority.Normal, TimeSpan? delay = null)
+            where TJob : IBackgroundJobBase<TArgs>
+        {
+            string jobInfoId;
+
+            using (var uow = UnitOfWorkManager.Begin())
+            {
+                var jobInfo = new BackgroundJobInfo
+                {
+                    JobType = typeof(TJob).AssemblyQualifiedName,
+                    JobArgs = args.ToJsonString(),
+                    Priority = priority
+                };
+
+                if (delay.HasValue)
+                {
+                    jobInfo.NextTryTime = Clock.Now.Add(delay.Value);
+                }
+
+                _store.Insert(jobInfo);
+                CurrentUnitOfWork.SaveChanges();
+
+                jobInfoId = jobInfo.Id.ToString();
+
+                uow.Complete();
+            }
+
+            return jobInfoId;
         }
 
         public async Task<bool> DeleteAsync(string jobId)
@@ -78,27 +122,36 @@ namespace Abp.BackgroundJobs
                 throw new ArgumentException($"The jobId '{jobId}' should be a number.", nameof(jobId));
             }
 
-            BackgroundJobInfo jobInfo = await _store.GetAsync(finalJobId);
-            if (jobInfo == null)
-            {
-                return false;
-            }
+            var jobInfo = await _store.GetAsync(finalJobId);
 
             await _store.DeleteAsync(jobInfo);
             return true;
         }
 
-        protected override void DoWork()
+        public bool Delete(string jobId)
         {
-            var waitingJobs = AsyncHelper.RunSync(() => _store.GetWaitingJobsAsync(1000));
+            if (long.TryParse(jobId, out long finalJobId) == false)
+            {
+                throw new ArgumentException($"The jobId '{jobId}' should be a number.", nameof(jobId));
+            }
+
+            var jobInfo = _store.Get(finalJobId);
+
+            _store.Delete(jobInfo);
+            return true;
+        }
+
+        protected override async Task DoWorkAsync()
+        {
+            var waitingJobs = await _store.GetWaitingJobsAsync(_backgroundJobConfiguration.MaxWaitingJobToProcessPerPeriod);
 
             foreach (var job in waitingJobs)
             {
-                TryProcessJob(job);
+                await TryProcessJobAsync(job);
             }
         }
 
-        private void TryProcessJob(BackgroundJobInfo jobInfo)
+        private async Task TryProcessJobAsync(BackgroundJobInfo jobInfo)
         {
             try
             {
@@ -110,13 +163,31 @@ namespace Abp.BackgroundJobs
                 {
                     try
                     {
-                        var jobExecuteMethod = job.Object.GetType().GetTypeInfo().GetMethod("Execute");
+                        var jobExecuteMethod = job.Object.GetType().GetTypeInfo()
+                                                   .GetMethod(nameof(IBackgroundJob<object>.Execute)) ??
+                                               job.Object.GetType().GetTypeInfo()
+                                                   .GetMethod(nameof(IAsyncBackgroundJob<object>.ExecuteAsync));
+
+                        if (jobExecuteMethod == null)
+                        {
+                            throw new AbpException(
+                                $"Given job type does not implement {typeof(IBackgroundJob<>).Name} or {typeof(IAsyncBackgroundJob<>).Name}. " +
+                                "The job type was: " + job.Object.GetType());
+                        }
+
                         var argsType = jobExecuteMethod.GetParameters()[0].ParameterType;
                         var argsObj = JsonConvert.DeserializeObject(jobInfo.JobArgs, argsType);
 
-                        jobExecuteMethod.Invoke(job.Object, new[] { argsObj });
+                        if (jobExecuteMethod.Name == nameof(IAsyncBackgroundJob<object>.ExecuteAsync))
+                        {
+                            await ((Task) jobExecuteMethod.Invoke(job.Object, new[] {argsObj}));
+                        }
+                        else
+                        {
+                            jobExecuteMethod.Invoke(job.Object, new[] {argsObj});
+                        }
 
-                        AsyncHelper.RunSync(() => _store.DeleteAsync(jobInfo));
+                        await _store.DeleteAsync(jobInfo);
                     }
                     catch (Exception ex)
                     {
@@ -132,15 +203,15 @@ namespace Abp.BackgroundJobs
                             jobInfo.IsAbandoned = true;
                         }
 
-                        TryUpdate(jobInfo);
+                        await TryUpdateAsync(jobInfo);
 
-                        EventBus.Trigger(
+                        await EventBus.TriggerAsync(
                             this,
                             new AbpHandledExceptionData(
                                 new BackgroundJobException(
-                                    "A background job execution is failed. See inner exception for details. See BackgroundJob property to get information on the background job.", 
+                                    "A background job execution is failed. See inner exception for details. See BackgroundJob property to get information on the background job.",
                                     ex
-                                    )
+                                )
                                 {
                                     BackgroundJob = jobInfo,
                                     JobObject = job.Object
@@ -156,15 +227,15 @@ namespace Abp.BackgroundJobs
 
                 jobInfo.IsAbandoned = true;
 
-                TryUpdate(jobInfo);
+                await TryUpdateAsync(jobInfo);
             }
         }
 
-        private void TryUpdate(BackgroundJobInfo jobInfo)
+        private async Task TryUpdateAsync(BackgroundJobInfo jobInfo)
         {
             try
             {
-                _store.UpdateAsync(jobInfo);
+                await _store.UpdateAsync(jobInfo);
             }
             catch (Exception updateEx)
             {

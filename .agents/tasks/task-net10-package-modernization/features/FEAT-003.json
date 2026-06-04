@@ -1,0 +1,27 @@
+{
+  "id": "FEAT-003",
+  "type": "refactor",
+  "description": "Modernize the Check utility class (src/Abp/Check.cs) to delegate to the .NET built-in ArgumentNullException.ThrowIfNull, ArgumentException.ThrowIfNullOrEmpty, and ArgumentException.ThrowIfNullOrWhiteSpace guard methods (available since .NET 7). This replaces custom null/empty checking logic with framework-provided implementations that are optimized and produce consistent exception messages. The public API signatures remain the same to avoid breaking changes for downstream consumers.",
+  "status": "completed",
+  "steps": [
+    "In src/Abp/Check.cs, refactor the NotNull<T> method to call ArgumentNullException.ThrowIfNull(value, parameterName) instead of the manual if-null-throw pattern, then return value",
+    "In src/Abp/Check.cs, refactor NotNullOrEmpty(string) to call ArgumentException.ThrowIfNullOrEmpty(value, parameterName) instead of the manual check, then return value",
+    "In src/Abp/Check.cs, refactor NotNullOrWhiteSpace(string) to call ArgumentException.ThrowIfNullOrWhiteSpace(value, parameterName) instead of the manual check, then return value",
+    "Keep the NotNullOrEmpty<T>(ICollection<T>) overload as-is since there is no built-in equivalent for collection emptiness checks",
+    "Remove the 'using Abp.Extensions' and 'using Abp.Collections.Extensions' imports if they become unused after the refactoring",
+    "Run 'dotnet build Abp.sln' to verify no compilation errors"
+  ],
+  "acceptance_criteria": [
+    "Check.NotNull delegates to ArgumentNullException.ThrowIfNull",
+    "Check.NotNullOrEmpty(string) delegates to ArgumentException.ThrowIfNullOrEmpty",
+    "Check.NotNullOrWhiteSpace(string) delegates to ArgumentException.ThrowIfNullOrWhiteSpace",
+    "The method signatures (return types, parameter types) remain unchanged",
+    "'dotnet build Abp.sln' succeeds"
+  ],
+  "verification": [
+    "Run 'dotnet build Abp.sln' and confirm zero build errors",
+    "Run 'dotnet test test/Abp.Tests/Abp.Tests.csproj --no-build' to verify Check tests pass"
+  ],
+  "blocked_reason": null,
+  "findings": "Removed 'using Abp.Extensions' (no longer needed). Kept 'using Abp.Collections.Extensions' because it is still used by the NotNullOrEmpty<T>(ICollection<T>) overload. Build passes with 0 errors. All 1091 Abp.Tests pass. No dedicated Check tests exist in the test suite."
+}

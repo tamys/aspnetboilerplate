@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
+using System.Threading.Tasks;
 
 namespace Abp.Reflection
 {
@@ -249,6 +250,29 @@ namespace Abp.Reflection
 
             property = currentType.GetProperty(properties.Last());
             property.SetValue(obj, value);
+        }
+
+        internal static bool IsPropertyGetterSetterMethod(MethodInfo method, Type type)
+        {
+            if (!method.IsSpecialName)
+            {
+                return false;
+            }
+
+            if (method.Name.Length < 5)
+            {
+                return false;
+            }
+
+            return type.GetProperty(method.Name.Substring(4), BindingFlags.Instance | BindingFlags.Static | BindingFlags.NonPublic) != null;
+        }
+        
+        internal static async Task<object> InvokeAsync(MethodInfo method, object obj, params object[] parameters)
+        {
+            var task = (Task)method.Invoke(obj, parameters);
+            await task;
+            var resultProperty = task.GetType().GetProperty("Result");
+            return resultProperty?.GetValue(task);
         }
     }
 }

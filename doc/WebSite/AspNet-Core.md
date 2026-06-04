@@ -1,7 +1,7 @@
 ### Introduction
 
-This document describes the ASP.NET Core integration for ASP.NET Boilerplate. 
-The ASP.NET Core integration is implemented in the 
+This document describes the ASP.NET Core integration for ASP.NET Boilerplate.
+The ASP.NET Core integration is implemented in the
 [Abp.AspNetCore](https://www.nuget.org/packages/Abp.AspNetCore) NuGet
 package.
 
@@ -9,7 +9,7 @@ package.
 
 If you have an existing project and are considering migrating to ASP.NET
 Core, you can read our [blog
-post](http://volosoft.com/migrating-from-asp-net-mvc-5x-to-asp-net-core/)
+post](https://medium.com/volosoft/migrating-from-asp-net-mvc-5-x-to-asp-net-core-520c9aa65e2c)
 about our experience on migrating.
 
 ### Startup Template
@@ -30,7 +30,7 @@ Startup class:
         public IServiceProvider ConfigureServices(IServiceCollection services)
         {
             //...
-
+    
             //Configure Abp and Dependency Injection. Should be called last.
             return services.AddAbp<MyProjectWebModule>(options =>
             {
@@ -40,12 +40,12 @@ Startup class:
                 );
             });
         }
-
+    
         public void Configure(IApplicationBuilder app, IHostingEnvironment env, ILoggerFactory loggerFactory)
         {
             //Initializes ABP framework and all modules. Should be called first.
-            app.UseAbp(); 
-            
+            app.UseAbp();
+    
             //...
         }
     }
@@ -115,6 +115,15 @@ service **interfaces** for application services. This is not
 required for the ASP.NET Core integration.  The MVC attributes should be
 added to the service classes, even if you have interfaces.
 
+**Note**: To use Mvc datetime format options, you can set this property `Configuration.Modules.AbpAspNetCore().UseMvcDateTimeFormatForAppServices`. Its default value is `false`. 
+
+Abp provides a convenient way for you to configure the default Cache-Control header for all **ApplicationService** and **Controller** via **IAbpAspNetCoreConfiguration**
+- **DefaultResponseCacheAttributeForAppServices**: Used if **Controller** class does not define **Microsoft.AspNetCore.Mvc.ResponseCacheAttribute**
+- **DefaultResponseCacheAttributeForControllers**: Used if **ApplicationService** class does not define **Microsoft.AspNetCore.Mvc.ResponseCacheAttribute**
+
+**Note**: Cache-Control is not configured by default. You may configure for all **ApplicationService** and **Controller** then
+use **Microsoft.AspNetCore.Mvc.ResponseCacheAttribute** at method/action level to override it.
+
 ### Filters
 
 ABP defines some **pre-built filters** for ASP.NET Core. All of them are
@@ -136,7 +145,7 @@ system](Feature-Management.md).
 #### Audit Action Filter
 
 **AbpAuditActionFilter** is used to integrate with the [audit logging
-system](Audit-Logging.md). If auditing is not disabled, it logs all requests 
+system](Audit-Logging.md). If auditing is not disabled, it logs all requests
 to all actions by default . You can control audit logging
 by using the **Audited** and **DisableAuditing** attributes on actions and
 controllers.
@@ -156,7 +165,7 @@ You can control validation using the **EnableValidation** and
 
 **AbpUowActionFilter** integrates with the [Unit of
 Work](Unit-Of-Work.md) system. It automatically begins a new unit of
-work before an action execution, and if no exception is thrown, completes the unit of 
+work before an action execution, and if no exception is thrown, completes the unit of
 work after the action execution.
 
 You can use the **UnitOfWork** attribute to control the behaviour of the UOW for an
@@ -172,11 +181,11 @@ controller actions. It **handles** and **logs** exceptions and returns a
 -   **This only handles object results**, and not view results. Actions
     returning any object, JsonResult or ObjectResult will be handled.
     Actions are not handled if they return a view or any other result type implementing
-    IActionsResult. It is recommend that you use the built-in UseExceptionHandler extension 
+    IActionsResult. It is recommend that you use the built-in UseExceptionHandler extension
     method defined in the Microsoft.AspNetCore.Diagnostics package to handle view exceptions.
--   Exception handling and logging behaviour can be changed using the 
+-   Exception handling and logging behaviour can be changed using the
     **WrapResult** and **DontWrapResult** attributes for methods and
-    classes.
+    classes. You can also create a custom result wrapping filter, see the WrapResultFilters section below.
 
 #### Result Filter
 
@@ -188,29 +197,107 @@ successfully executed.
     versions). If your action is returning a view or any other type of
     result, it will not be wrapped.
 -   The **WrapResult** and **DontWrapResult** attributes can be used for
-    methods and classes to enable/disable wrapping.
+    methods and classes to enable/disable wrapping. You can also create a custom result wrapping filter, see the WrapResultFilters section below.
 -   You can use a startup configuration to change the default behavior for
     result wrapping.
 
-##### Result Caching For Ajax Requests
+#### WrapResultFilters
 
-AbpResultFilter adds a **Cache-Control** header (no-cache, no-store...) to
-the response of AJAX Requests. Thus, it prevents browser caching of
-AJAX responses even for GET requests. This behavior can be disabled by
-configuration or attributes. You can use the  **NoClientCache** attribute
-to prevent caching (default) or **AllowClientCache** attrbiute to allow the
-browser to cache results. Alternatively, you can implement
-IClientCacheAttribute to create a custom attribute for finer
-control.
+You can also implement a custom ```IWrapResultFilter``` and decide result wrapping conditionally by the current request URL. A custom result wrapping filter must be added to ```WrapResultFilters``` as shown below;
+
+````c#
+Configuration.Modules.AbpWebCommon().WrapResultFilters.Add(new MyWrapResultFilter());
+````
+
+This approach can be useful if you don't have access the source code of the Controllers and can't used result wrapping attributes on the Controllers.
+
+### HTML Sanitization
+
+##### HTML Sanitizer Action Filter
+
+To prevent **XSS** attacks, it's important to **sanitize** HTML input of actions. ASP.NET Boilerplate provides **AbpHtmlSanitizerActionFilter** for this purpose.
+
+To get started, you'll need to **add** the [Abp.HtmlSanitizer](https://www.nuget.org/packages/Abp.HtmlSanitizer) NuGet package to your project. Then, you can enable **HTML sanitizer** by adding the following code to your **Startup.cs** file:
+
+
+```csharp
+public void ConfigureServices(IServiceCollection services)
+{
+    .
+    .
+
+    services.AddMvc(options =>
+    {
+        .
+        .
+
+        options.AddAbpHtmlSanitizer();
+    });
+}
+```
+
+You can use the **SanitizeHtmlAttribute** on methods, classes, properties or parameters to sanitize HTML input. This attribute has two parameters:
+
+* **IsDisabled**: If set to true, HTML sanitizer is disabled for the place used. The **default** value is **false**.
+
+* **KeepChildNodes**: If set to true, HTML sanitizer **keeps child nodes** of the sanitized HTML. The **default** value is **false**.
+
+* **Selectors**: You can add any method of any class to Selectors list to sanitize this method's parameters. This is mostly used for Application Service methods. For example, configuration below enables HTML sanitization for Register method of IAccountAppService.
+
+```csharp
+Configuration.Modules.AbpHtmlSanitizer().AddSelector<IAccountAppService>(x => nameof(x.Register));
+```
+
+Example usage: 
+
+```csharp
+[SanitizeHtml]
+[HttpPost("sanitizerTest/sanitizeHtmlTest")]
+public MyModel SanitizeHtml(MyModel myModel)
+{
+    return myModel;
+}
+```
+
+> More examples can be found in the [ASP.NET Core Demo](https://github.com/aspnetboilerplate/aspnetboilerplate/blob/dev/test/aspnet-core-demo/AbpAspNetCoreDemo/Controllers/SanitizerTestController.cs):
+
+##### HTML Sanitizer Middleware
+
+Instead of using HTML Sanitizer action filter, you can prefer to use HTML Sanitizer middleware. This middleware should be placed after the routing middleware as shown below. Since this middleware will work before model binding, it is the suggested approach.
+
+```csharp
+app.UseRouting();
+app.UseAbpHtmlSanitizer(); //Sanitize HTML inputs
+```
 
 ### Model Binders
 
 **AbpDateTimeModelBinder** is used to normalize DateTime (and
 Nullable&lt;DateTime&gt;) inputs using the **Clock.Normalize** method.
 
+#### JSON Converters
+
+ASP.NET Boilerplate provides two JsonConverter for Newtonsoft. 
+
+* **CultureInvariantDecimalConverter**: Used to convert a string value to a decimal value when converting JSON string to a object.
+* **CultureInvariantDoubleConverter**: Used to convert a string value to a double value when converting JSON string to a object.
+
+If you want to use one of these converters in your project, you can use them as shown below:
+
+```csharp
+public IServiceProvider ConfigureServices(IServiceCollection services)
+{
+	services.AddNewtonsoftJson(options =>
+	{
+		options.SerializerSettings.Converters.Add(new CultureInvariantDecimalConverter());
+		options.SerializerSettings.Converters.Add(new CultureInvariantDoubleConverter());
+	});
+}
+```
+
 ### Views
 
-MVC Views can be inherited from **AbpRazorPage** to automatically inject the 
+MVC Views can be inherited from **AbpRazorPage** to automatically inject the
 most commonly used infrastructure (LocalizationManager, PermissionChecker,
 SettingManager... etc.). It also has shortcut methods, like L(...) for
 localized texts. The startup template inherits this by default.
@@ -242,9 +329,9 @@ method with JavaScript as shown below:
 ### Integration Testing
 
 Integration testing is fairly easy for ASP.NET Core and it's [documented on
-it's own web
+its own web
 site](https://docs.asp.net/en/latest/testing/integration-testing.html)
-in detail. ABP follows these guidelines and provides a 
+in detail. ABP follows these guidelines and provides a
 **AbpAspNetCoreIntegratedTestBase** class in the
 [Abp.AspNetCore.TestBase](https://www.nuget.org/packages/Abp.AspNetCore.TestBase)
 package. It makes integration testing even easier.

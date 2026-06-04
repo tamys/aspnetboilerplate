@@ -16,43 +16,53 @@ In Domain Driven Design (DDD), the Value Object is another type of domain
 object which can include business logic and is an essential part of the
 domain.
 
-### Value Object Base Class
+### Value Object Base Classes
 
-ABP has a **ValueObject&lt;T&gt;** base class which can be inherited in
-order to easily create Value Object types. Here's an example **Address** Value
-Object type:
+ABP has a class for value objects: **ValueObject** . For example, all of these tests pass:
 
-    public class Address : ValueObject<Address>
+```csharp
+var address1 = new Address(new Guid("21C67A65-ED5A-4512-AA29-66308FAAB5AF"), "Baris Manco Street", 42);
+var address2 = new Address(new Guid("21C67A65-ED5A-4512-AA29-66308FAAB5AF"), "Baris Manco Street", 42);
+
+Assert.True(address1.ValueEquals(address2));
+Assert.True(address2.ValueEquals(address1));
+```
+
+Even if they are different objects in memory, they are identical for our domain.
+
+
+#### ValueObject
+
+Here's an example **Address** that inherits from the **ValueObject** class:
+
+```csharp
+public class Address : ValueObject
+{
+    public Guid CityId { get; }
+
+    public string Street { get; }
+
+    public int Number { get; }
+
+    public Address(
+        Guid cityId,
+        string street,
+        int number)
     {
-        public Guid CityId { get; private set; } //A reference to a City entity.
-
-        public string Street { get; private set; }
-
-        public int Number { get; private set; }
-
-        public Address(Guid cityId, string street, int number)
-        {
-            CityId = cityId;
-            Street = street;
-            Number = number;
-        }
+        CityId = cityId;
+        Street = street;
+        Number = number;
     }
 
-The ValueObject base class overrides the equality operator (and other related
-operator and methods) to compare the two value objects and assumes that they
-are identical if all the properties are the same. For example, all of these tests
-pass:
-
-    var address1 = new Address(new Guid("21C67A65-ED5A-4512-AA29-66308FAAB5AF"), "Baris Manco Street", 42);
-    var address2 = new Address(new Guid("21C67A65-ED5A-4512-AA29-66308FAAB5AF"), "Baris Manco Street", 42);
-
-    Assert.Equal(address1, address2);
-    Assert.Equal(address1.GetHashCode(), address2.GetHashCode());
-    Assert.True(address1 == address2);
-    Assert.False(address1 != address2);
-
-Even if they are different objects in memory, they are identical for our
-domain.
+    //Requires to implement this method to return properties.
+    protected override IEnumerable<object> GetAtomicValues()
+    {
+        yield return Street;
+        yield return CityId;
+        yield return Number;
+    }
+}
+```
 
 ### Best Practices
 

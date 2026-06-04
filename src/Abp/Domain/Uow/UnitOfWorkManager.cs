@@ -1,4 +1,6 @@
-﻿using System.Linq;
+﻿using System;
+using System.Linq;
+using System.Threading.Tasks;
 using System.Transactions;
 using Abp.Dependency;
 
@@ -46,7 +48,9 @@ namespace Abp.Domain.Uow
 
             if (options.Scope == TransactionScopeOption.Required && outerUow != null)
             {
-                return new InnerUnitOfWorkCompleteHandle();
+                return outerUow.Options?.Scope == TransactionScopeOption.Suppress
+                    ? new InnerSuppressUnitOfWorkCompleteHandle(outerUow)
+                    : new InnerUnitOfWorkCompleteHandle();
             }
 
             var uow = _iocResolver.Resolve<IUnitOfWork>();

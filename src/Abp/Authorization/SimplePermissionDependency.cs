@@ -19,7 +19,15 @@ namespace Abp.Authorization
         /// Default: false.
         /// </summary>
         public bool RequiresAll { get; set; }
-
+        
+        /// <summary>
+        /// Required for serialization.
+        /// </summary>
+        public SimplePermissionDependency()
+        {
+            
+        }
+        
         /// <summary>
         /// Initializes a new instance of the <see cref="SimplePermissionDependency"/> class.
         /// </summary>
@@ -49,6 +57,14 @@ namespace Abp.Authorization
             return context.User != null
                 ? context.PermissionChecker.IsGrantedAsync(context.User, RequiresAll, Permissions)
                 : context.PermissionChecker.IsGrantedAsync(RequiresAll, Permissions);
+        }
+
+        /// <inheritdoc/>
+        public bool IsSatisfied(IPermissionDependencyContext context)
+        {
+            return context.User != null
+                ? context.PermissionChecker.IsGranted(context.User, RequiresAll, Permissions)
+                : context.PermissionChecker.IsGranted(RequiresAll, Permissions);
         }
     }
 }

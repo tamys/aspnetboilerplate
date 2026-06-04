@@ -19,6 +19,14 @@ namespace Abp.Application.Features
         /// Default: false.
         /// </summary>
         public bool RequiresAll { get; set; }
+
+        /// <summary>
+        /// Required for serialization.
+        /// </summary>
+        public SimpleFeatureDependency()
+        {
+            
+        }
         
         /// <summary>
         /// Initializes a new instance of the <see cref="SimpleFeatureDependency"/> class.
@@ -49,6 +57,14 @@ namespace Abp.Application.Features
             return context.TenantId.HasValue
                 ? context.FeatureChecker.IsEnabledAsync(context.TenantId.Value, RequiresAll, Features)
                 : context.FeatureChecker.IsEnabledAsync(RequiresAll, Features);
+        }
+
+        /// <inheritdoc/>
+        public bool IsSatisfied(IFeatureDependencyContext context)
+        {
+            return context.TenantId.HasValue
+                ? context.FeatureChecker.IsEnabled(context.TenantId.Value, RequiresAll, Features)
+                : context.FeatureChecker.IsEnabled(RequiresAll, Features);
         }
     }
 }

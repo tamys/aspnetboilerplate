@@ -10,10 +10,11 @@ namespace Abp.MailKit
     public static class EmailExtensions
     {
         /// <summary>
-        /// A modified version of CreateFromMailMessage() method in https://github.com/jstedfast/MimeKit/blob/master/MimeKit/MimeMessage.cs
+        /// Use MimeMessage.CreateFromMailMessage() instead
         /// </summary>
         /// <param name="mail"></param>
         /// <returns></returns>
+        [Obsolete]
         public static MimeMessage ToMimeMessage(this MailMessage mail)
         {
             if (mail == null)
@@ -30,7 +31,7 @@ namespace Abp.MailKit
                 }
             }
 
-            var message = new MimeMessage(headers.ToArray());
+            var message = new MimeMessage(headers);
             MimeEntity body = null;
 
             // Note: If the user has already sent their MailMessage via System.Net.Mail.SmtpClient,
@@ -237,7 +238,7 @@ namespace Abp.MailKit
             item.ContentStream.CopyTo(stream);
             stream.Position = 0;
 
-            part.ContentObject = new ContentObject(stream);
+            part.Content = new MimeContent(stream);
 
             return part;
         }

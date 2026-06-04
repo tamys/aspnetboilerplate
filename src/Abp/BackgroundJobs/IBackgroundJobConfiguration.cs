@@ -1,4 +1,5 @@
-﻿using Abp.Configuration.Startup;
+﻿using System;
+using Abp.Configuration.Startup;
 
 namespace Abp.BackgroundJobs
 {
@@ -12,6 +13,23 @@ namespace Abp.BackgroundJobs
         /// </summary>
         bool IsJobExecutionEnabled { get; set; }
 
+        /// <summary>
+        /// Period in milliseconds.
+        /// </summary>
+        [Obsolete("Use UserTokenExpirationPeriod instead.")]
+        int? CleanUserTokenPeriod { get; set; }
+
+        /// <summary>
+        /// Period for user token expiration worker.
+        /// </summary>
+        TimeSpan? UserTokenExpirationPeriod { get; set; }
+
+        
+        /// <summary>
+        /// Maximum number of waiting jobs to process per period.
+        /// </summary>
+        int MaxWaitingJobToProcessPerPeriod { get; set; }
+        
         /// <summary>
         /// Gets the ABP configuration object.
         /// </summary>

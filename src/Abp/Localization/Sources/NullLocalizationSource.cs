@@ -13,8 +13,7 @@ namespace Abp.Localization.Sources
         /// <summary>
         /// Singleton instance.
         /// </summary>
-        public static NullLocalizationSource Instance { get { return SingletonInstance; } }
-        private static readonly NullLocalizationSource SingletonInstance = new NullLocalizationSource();
+        public static NullLocalizationSource Instance { get; } = new NullLocalizationSource();
 
         public string Name { get { return null; } }
 
@@ -22,12 +21,17 @@ namespace Abp.Localization.Sources
 
         private NullLocalizationSource()
         {
-            
+
         }
 
         public void Initialize(ILocalizationConfiguration configuration, IIocResolver iocResolver)
         {
-            
+
+        }
+
+        public string FindKeyOrNull(string value, CultureInfo culture, bool tryDefaults = true)
+        {
+            return null;
         }
 
         public string GetString(string name)
@@ -46,6 +50,26 @@ namespace Abp.Localization.Sources
         }
 
         public string GetStringOrNull(string name, CultureInfo culture, bool tryDefaults = true)
+        {
+            return null;
+        }
+
+        public List<string> GetStrings(List<string> names)
+        {
+            return names;
+        }
+
+        public List<string> GetStrings(List<string> names, CultureInfo culture)
+        {
+            return names;
+        }
+
+        public List<string> GetStringsOrNull(List<string> names, bool tryDefaults = true)
+        {
+            return null;
+        }
+
+        public List<string> GetStringsOrNull(List<string> names, CultureInfo culture, bool tryDefaults = true)
         {
             return null;
         }

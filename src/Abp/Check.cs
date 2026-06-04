@@ -2,7 +2,6 @@
 using System.Collections.Generic;
 using System.Diagnostics;
 using Abp.Collections.Extensions;
-using Abp.Extensions;
 using JetBrains.Annotations;
 
 namespace Abp
@@ -13,10 +12,7 @@ namespace Abp
         [ContractAnnotation("value:null => halt")]
         public static T NotNull<T>(T value, [InvokerParameterName] [NotNull] string parameterName)
         {
-            if (value == null)
-            {
-                throw new ArgumentNullException(parameterName);
-            }
+            ArgumentNullException.ThrowIfNull(value, parameterName);
 
             return value;
         }
@@ -24,10 +20,7 @@ namespace Abp
         [ContractAnnotation("value:null => halt")]
         public static string NotNullOrEmpty(string value, [InvokerParameterName] [NotNull] string parameterName)
         {
-            if (value.IsNullOrEmpty())
-            {
-                throw new ArgumentException($"{parameterName} can not be null or empty!", parameterName);
-            }
+            ArgumentException.ThrowIfNullOrEmpty(value, parameterName);
 
             return value;
         }
@@ -35,10 +28,7 @@ namespace Abp
         [ContractAnnotation("value:null => halt")]
         public static string NotNullOrWhiteSpace(string value, [InvokerParameterName] [NotNull] string parameterName)
         {
-            if (value.IsNullOrWhiteSpace())
-            {
-                throw new ArgumentException($"{parameterName} can not be null, empty or white space!", parameterName);
-            }
+            ArgumentException.ThrowIfNullOrWhiteSpace(value, parameterName);
 
             return value;
         }

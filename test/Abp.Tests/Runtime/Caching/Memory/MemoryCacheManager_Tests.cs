@@ -1,4 +1,6 @@
 ﻿using System;
+using System.Collections.Generic;
+using System.Threading;
 using System.Threading.Tasks;
 using Abp.Configuration.Startup;
 using Abp.Dependency;
@@ -48,6 +50,27 @@ namespace Abp.Tests.Runtime.Caching.Memory
 
             _cache.Get("B", () => new MyCacheItem { Value = 43 }).Value.ShouldBe(43);
             _cache.Get("B", () => new MyCacheItem { Value = 44 }).Value.ShouldBe(43); //Does not call factory, so value is not changed
+
+            var items1 = _cache.GetOrDefault(new string[] { "B", "C" });
+            items1[0].Value.ShouldBe(43);
+            items1[1].ShouldBeNull();
+
+            var items2 = _cache.GetOrDefault(new string[] { "C", "D" });
+            items2[0].ShouldBeNull();
+            items2[1].ShouldBeNull();
+
+            _cache.Set(new KeyValuePair<string, MyCacheItem>[] {
+                new KeyValuePair<string, MyCacheItem>("C", new MyCacheItem{ Value = 44}),
+                new KeyValuePair<string, MyCacheItem>("D", new MyCacheItem{ Value = 45})
+            });
+
+            var items3 = _cache.GetOrDefault(new string[] { "C", "D" });
+            items3[0].Value.ShouldBe(44);
+            items3[1].Value.ShouldBe(45);
+
+            var items4 = _cache.Get(new string[] { "D", "E" }, (key) => new MyCacheItem { Value = key == "D" ? 46 : 47 });
+            items4[0].Value.ShouldBe(45); //Does not call factory, so value is not changed
+            items4[1].Value.ShouldBe(47);
         }
 
         [Fact]
@@ -56,12 +79,12 @@ namespace Abp.Tests.Runtime.Caching.Memory
             Parallel.For(
                 0,
                 2048,
-                new ParallelOptions {MaxDegreeOfParallelism = 16},
+                new ParallelOptions { MaxDegreeOfParallelism = 16 },
                 i =>
                 {
                     var randomKey = RandomHelper.GetRandomOf("A", "B", "C", "D");
-                    var randomValue = RandomHelper.GetRandom(0, 16);
-                    switch (RandomHelper.GetRandom(0, 3))
+                    var randomValue = RandomHelper.GetRandom(0, 32);
+                    switch (RandomHelper.GetRandom(0, 4))
                     {
                         case 0:
                             _cache.Get(randomKey, () => new MyCacheItem(randomValue));
@@ -74,6 +97,17 @@ namespace Abp.Tests.Runtime.Caching.Memory
                             break;
                         case 2:
                             _cache.GetOrDefault(randomKey);
+                            break;
+                        case 3:
+                            var randomKeys = new string[] { randomKey, randomKey + randomKey };
+                            _cache.GetOrDefault(randomKeys);
+                            var pairs = new KeyValuePair<string, MyCacheItem>[]
+                            {
+                                new KeyValuePair<string, MyCacheItem>(randomKeys[0], new MyCacheItem{ Value= RandomHelper.GetRandom(0, 16) }),
+                                new KeyValuePair<string, MyCacheItem>(randomKeys[1], new MyCacheItem{ Value= RandomHelper.GetRandom(0, 16) })
+                            };
+                            _cache.Set(pairs);
+                            _cache.GetOrDefault(randomKeys);
                             break;
                     }
                 });
@@ -93,6 +127,49 @@ namespace Abp.Tests.Runtime.Caching.Memory
             });
         }
 
+        [Fact]
+        public void DefaultAbsoluteExpireTimeFactory_Test()
+        {
+            var cache = _cacheManager.GetCache<string, MyCacheItem>("MyCacheItems");
+
+            cache.DefaultAbsoluteExpireTimeFactory = _ => DateTimeOffset.Now + TimeSpan.FromMilliseconds(800);
+
+            var absoluteExpireTimeChangedCount = 0;
+            for (var i = 0; i < 10; i++)
+            {
+                cache.Get("A", () =>
+                {
+                    absoluteExpireTimeChangedCount++;
+                    return new MyCacheItem();
+                });
+            }
+            absoluteExpireTimeChangedCount.ShouldBe(1);
+
+            Thread.Sleep(1 * 1000);
+
+            for (var i = 0; i < 10; i++)
+            {
+                cache.Get("A", () =>
+                {
+                    absoluteExpireTimeChangedCount++;
+                    return new MyCacheItem();
+                });
+            }
+            absoluteExpireTimeChangedCount.ShouldBe(2);
+
+            Thread.Sleep(1 * 1000);
+
+            for (var i = 0; i < 10; i++)
+            {
+                cache.Get("A", () =>
+                {
+                    absoluteExpireTimeChangedCount++;
+                    return new MyCacheItem();
+                });
+            }
+            absoluteExpireTimeChangedCount.ShouldBe(3);
+        }
+
         [Serializable]
         public class MyCacheItem
         {
@@ -100,7 +177,7 @@ namespace Abp.Tests.Runtime.Caching.Memory
 
             public MyCacheItem()
             {
-                
+
             }
 
             public MyCacheItem(int value)
@@ -117,10 +194,8 @@ namespace Abp.Tests.Runtime.Caching.Memory
             {
                 return CacheManager
                     .GetCache("MyClientPropertyInjectsCache")
-                    .Get("A", () =>
-                    {
-                        return value;
-                    });
+                    .AsTyped<string, int>()
+                    .Get("A", (k) => value);
             }
         }
     }

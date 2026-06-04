@@ -7,9 +7,11 @@ using Abp.TestBase;
 using Abp.Timing;
 
 using Microsoft.EntityFrameworkCore;
+using Xunit;
 
 namespace Abp.EntityFrameworkCore.Dapper.Tests
 {
+    [Collection("Clock.Provider")]
     public class AbpEfCoreDapperTestApplicationBase : AbpIntegratedTestBase<AbpEfCoreDapperTestModule>
     {
         protected AbpEfCoreDapperTestApplicationBase()
@@ -26,7 +28,6 @@ namespace Abp.EntityFrameworkCore.Dapper.Tests
                 bloggingDbContext.Database.OpenConnection();
                 bloggingDbContext.Database.EnsureDeleted();
                 bloggingDbContext.Database.EnsureCreated();
-                bloggingDbContext.Database.Migrate();
             }
 
             UsingDbContext(
@@ -67,7 +68,7 @@ namespace Abp.EntityFrameworkCore.Dapper.Tests
 
         public async Task UsingDbContextAsync(Func<BloggingDbContext, Task> action)
         {
-            using (var context = LocalIocManager.Resolve<BloggingDbContext>())
+            await using (var context = LocalIocManager.Resolve<BloggingDbContext>())
             {
                 await action(context);
                 await context.SaveChangesAsync(true);
@@ -78,10 +79,10 @@ namespace Abp.EntityFrameworkCore.Dapper.Tests
         {
             T result;
 
-            using (var context = LocalIocManager.Resolve<BloggingDbContext>())
+            await using (var context = LocalIocManager.Resolve<BloggingDbContext>())
             {
                 result = await func(context);
-                context.SaveChanges();
+                await context.SaveChangesAsync();
             }
 
             return result;

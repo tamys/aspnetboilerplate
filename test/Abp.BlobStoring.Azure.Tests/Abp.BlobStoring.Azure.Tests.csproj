@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+	<PropertyGroup>
+		<TargetFramework>net10.0</TargetFramework>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.0.1" />
+		<PackageReference Include="xunit" Version="2.9.3" />
+	</ItemGroup>
+	
+	<ItemGroup>
+		<ProjectReference Include="..\..\src\Abp.BlobStoring.Azure\Abp.BlobStoring.Azure.csproj" />
+		<ProjectReference Include="..\Abp.BlobStoring.Tests\Abp.BlobStoring.Tests.csproj" />
+		<ProjectReference Include="..\Abp.Tests\Abp.Tests.csproj" />
+	</ItemGroup>
+
+</Project>

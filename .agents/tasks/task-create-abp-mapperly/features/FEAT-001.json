@@ -1,0 +1,40 @@
+{
+  "id": "FEAT-001",
+  "type": "feat",
+  "description": "Create the Abp.Mapperly package with all source files, project configuration, and solution integration. This includes the csproj, FodyWeavers, AssemblyInfo, configuration interfaces, module class, object mapper implementation, and solution file update.",
+  "status": "completed",
+  "steps": [
+    "Create directory structure: src/Abp.Mapperly/ and src/Abp.Mapperly/Mapperly/ and src/Abp.Mapperly/Properties/",
+    "Create src/Abp.Mapperly/Abp.Mapperly.csproj following the pattern of src/Abp.AutoMapper/Abp.AutoMapper.csproj: target net10.0, import common.props and configureawait.props, reference Abp.csproj, add PackageReference to Riok.Mapperly version 4.1.1, set RootNamespace to Abp, set AssemblyName and PackageId to Abp.Mapperly, include GenerateDocumentationFile, disable auto-generated assembly attributes same as AutoMapper project, set Description to Abp.Mapperly, add PackageTags including mapperly and object mapper",
+    "Create src/Abp.Mapperly/FodyWeavers.xml with same content as src/Abp.AutoMapper/FodyWeavers.xml (ConfigureAwait ContinueOnCapturedContext=false)",
+    "Create src/Abp.Mapperly/FodyWeavers.xsd with same content as src/Abp.AutoMapper/FodyWeavers.xsd",
+    "Create src/Abp.Mapperly/Properties/AssemblyInfo.cs following src/Abp.AutoMapper/Properties/AssemblyInfo.cs pattern but with title Abp.Mapperly and product Abp.Mapperly, InternalsVisibleTo Abp.Mapperly.Tests",
+    "Create src/Abp.Mapperly/Mapperly/IAbpMapperlyConfiguration.cs - interface with a List<Action<MapperlyConfigurationContext>> Configurators property. MapperlyConfigurationContext is a simple class that holds the IIocManager reference so users can register custom mappers.",
+    "Create src/Abp.Mapperly/Mapperly/AbpMapperlyConfiguration.cs - implementation of IAbpMapperlyConfiguration with the Configurators list initialized in constructor",
+    "Create src/Abp.Mapperly/Mapperly/MapperlyConfigurationContext.cs - a class with IIocManager property that is passed to configurators so they can register mapper instances",
+    "Create src/Abp.Mapperly/Mapperly/AbpMapperlyConfigurationExtensions.cs - static class with extension method on IModuleConfigurations returning IAbpMapperlyConfiguration (pattern: configurations.AbpConfiguration.Get<IAbpMapperlyConfiguration>())",
+    "Create src/Abp.Mapperly/Mapperly/IMapperlyMapper.cs - interface that user-defined Mapperly mapper classes should implement, with methods: object Map(object source, Type sourceType, Type destinationType); TDestination Map<TDestination>(object source); TDestination Map<TSource, TDestination>(TSource source, TDestination destination); IQueryable<TDestination> ProjectTo<TDestination>(IQueryable source); bool CanMap(Type sourceType, Type destinationType);",
+    "Create src/Abp.Mapperly/Mapperly/MapperlyObjectMapper.cs - implements Abp.ObjectMapping.IObjectMapper. Constructor takes IEnumerable<IMapperlyMapper> or uses IIocManager to resolve all IMapperlyMapper instances. Map<TDestination>(object source) iterates registered mappers and calls the first one where CanMap returns true. Map<TSource,TDestination> same pattern. ProjectTo<TDestination> same pattern. Throws AbpException if no mapper can handle the types.",
+    "Create src/Abp.Mapperly/Mapperly/AbpMapperlyModule.cs - ABP module class decorated with [DependsOn(typeof(AbpKernelModule))]. In PreInitialize: register IAbpMapperlyConfiguration as AbpMapperlyConfiguration, call Configuration.ReplaceService<ObjectMapping.IObjectMapper, MapperlyObjectMapper>(). In PostInitialize: use ITypeFinder to find all types implementing IMapperlyMapper, register them in Castle Windsor as IMapperlyMapper (all implementations), then call configurators. Inject ITypeFinder in constructor.",
+    "Add the new project to Abp.sln using 'dotnet sln add' command: dotnet sln Abp.sln add src/Abp.Mapperly/Abp.Mapperly.csproj --solution-folder src",
+    "Run dotnet restore and dotnet build on src/Abp.Mapperly/Abp.Mapperly.csproj to verify it compiles successfully"
+  ],
+  "acceptance_criteria": [
+    "src/Abp.Mapperly/Abp.Mapperly.csproj exists and targets net10.0",
+    "src/Abp.Mapperly/Abp.Mapperly.csproj references Riok.Mapperly 4.1.1 and ProjectReference to ../Abp/Abp.csproj",
+    "src/Abp.Mapperly/FodyWeavers.xml and FodyWeavers.xsd exist",
+    "src/Abp.Mapperly/Properties/AssemblyInfo.cs exists with Abp.Mapperly title",
+    "src/Abp.Mapperly/Mapperly/AbpMapperlyModule.cs exists, depends on AbpKernelModule, registers configuration and replaces IObjectMapper",
+    "src/Abp.Mapperly/Mapperly/MapperlyObjectMapper.cs implements Abp.ObjectMapping.IObjectMapper",
+    "src/Abp.Mapperly/Mapperly/IAbpMapperlyConfiguration.cs exists with Configurators property",
+    "src/Abp.Mapperly/Mapperly/IMapperlyMapper.cs exists as the interface for user-defined mappers",
+    "The project is listed in Abp.sln",
+    "dotnet build src/Abp.Mapperly/Abp.Mapperly.csproj succeeds with exit code 0"
+  ],
+  "verification": [
+    "dotnet build src/Abp.Mapperly/Abp.Mapperly.csproj",
+    "dotnet sln Abp.sln list | grep Abp.Mapperly"
+  ],
+  "blocked_reason": null,
+  "findings": ".NET SDK was not pre-installed. Installed 10.0.300 via dotnet-install.sh (compatible with global.json rollForward:latestFeature). The dotnet sln add command expanded solution configuration platforms to include x64 and x86 in addition to the existing Any CPU - this is standard dotnet CLI behavior. Build succeeded with 0 errors (only pre-existing warnings from the Abp core project)."
+}

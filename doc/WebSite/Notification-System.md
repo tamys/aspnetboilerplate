@@ -56,7 +56,10 @@ persistence.
 ### Subscribe to Notifications
 
 The **INotificationSubscriptionManager** provides an API to **subscribe** to
-notifications. Examples:
+notifications. A User can subscribe to a specific notification, to a notification related to a specific entity. 
+A user can also select specific notifiers when subscribing to a notification. In this way, user will not be notified by other notifiers. Full type name of the notifier must be provided when selecting a target Notifier. It can be set using `new EmailRealTimeNotifier().GetType().FullName` and accepts comma separated multiple values. 
+
+Examples:
 
     public class MyService : ITransientDependency
     {
@@ -68,9 +71,9 @@ notifications. Examples:
         }
 
         //Subscribe to a general notification
-        public async Task Subscribe_SentFrendshipRequest(int? tenantId, long userId)
+        public async Task Subscribe_SentFriendshipRequest(int? tenantId, long userId)
         {
-            await _notificationSubscriptionManager.SubscribeAsync(new UserIdentifier(tenantId, userId), "SentFrendshipRequest");    
+            await _notificationSubscriptionManager.SubscribeAsync(new UserIdentifier(tenantId, userId), "SentFriendshipRequest");    
         }
 
         //Subscribe to an entity notification
@@ -88,7 +91,7 @@ a **specific entity** (Photo), if the user wants to get notified if anyone
 writes a comment to a specified photo.
 
 Every notification type should have a **unique name** (like
-*SentFrendshipRequest* and *CommentPhoto* in the examples)
+*SentFriendshipRequest* and *CommentPhoto* in the examples)
 
 The **INotificationSubscriptionManager** also has the **UnsubscribeAsync,
 IsSubscribedAsync, GetSubscriptionsAsync**... methods to manage
@@ -100,23 +103,23 @@ subscriptions.
 
     public class MyService : ITransientDependency
     {
-        private readonly INotificationPublisher _notiticationPublisher;
+        private readonly INotificationPublisher _notificationPublisher;
 
-        public MyService(INotificationPublisher notiticationPublisher)
+        public MyService(INotificationPublisher notificationPublisher)
         {
-            _notiticationPublisher = notiticationPublisher;
+            _notificationPublisher = notificationPublisher;
         }
 
         //Send a general notification to a specific user
-        public async Task Publish_SentFrendshipRequest(string senderUserName, string friendshipMessage, UserIdentifier targetUserId)
+        public async Task Publish_SentFriendshipRequest(string senderUserName, string friendshipMessage, UserIdentifier targetUserId)
         {
-            await _notiticationPublisher.PublishAsync("SentFrendshipRequest", new SentFrendshipRequestNotificationData(senderUserName, friendshipMessage), userIds: new[] { targetUserId });
+            await _notificationPublisher.PublishAsync("SentFriendshipRequest", new SentFriendshipRequestNotificationData(senderUserName, friendshipMessage), userIds: new[] { targetUserId });
         }
 
         //Send an entity notification to a specific user
         public async Task Publish_CommentPhoto(string commenterUserName, string comment, Guid photoId, UserIdentifier photoOwnerUserId)
         {
-            await _notiticationPublisher.PublishAsync("CommentPhoto", new CommentPhotoNotificationData(commenterUserName, comment), new EntityIdentifier(typeof(Photo), photoId), userIds: new[] { photoOwnerUserId });
+            await _notificationPublisher.PublishAsync("CommentPhoto", new CommentPhotoNotificationData(commenterUserName, comment), new EntityIdentifier(typeof(Photo), photoId), userIds: new[] { photoOwnerUserId });
         }
 
         //Send a general notification to all subscribed users in current tenant (tenant in the session)
@@ -126,22 +129,22 @@ subscriptions.
             var data = new LocalizableMessageNotificationData(new LocalizableString("LowDiskWarningMessage", "MyLocalizationSourceName"));
             data["remainingDiskInMb"] = remainingDiskInMb;
 
-            await _notiticationPublisher.PublishAsync("System.LowDisk", data, severity: NotificationSeverity.Warn);    
+            await _notificationPublisher.PublishAsync("System.LowDisk", data, severity: NotificationSeverity.Warn);    
         }
     }
 
 In the first example, we published a notification to a single user.
-*SentFrendshipRequestNotificationData* should be derived from
+*SentFriendshipRequestNotificationData* should be derived from
 **NotificationData** like this:
 
     [Serializable]
-    public class SentFrendshipRequestNotificationData : NotificationData
+    public class SentFriendshipRequestNotificationData : NotificationData
     {
         public string SenderUserName { get; set; }
 
         public string FriendshipMessage { get; set; }
 
-        public SentFrendshipRequestNotificationData(string senderUserName, string friendshipMessage)
+        public SentFriendshipRequestNotificationData(string senderUserName, string friendshipMessage)
         {
             SenderUserName = senderUserName;
             FriendshipMessage = friendshipMessage;
@@ -182,11 +185,19 @@ application.
 ### Real-Time Notifications
 
 While you can use IUserNotificationManager to query notifications, we
-generally want to push real time notifications to the client.
+generally want to push real-time notifications to the client.
 
-The notification system uses **IRealTimeNotifier** to send real time
-notifications to users. This can be implemented with any type of real
-time communication system. It's implemented using **SignalR** in a
+The notification system uses **IRealTimeNotifier** to send real-time
+notifications to users. This can be implemented with any type of real-time
+communication system.
+
+Examples of real-time notifiers:
+
+- SignalR
+- Email
+- SMS
+
+It's implemented using **SignalR** in a
 separated package. The [startup templates](/Templates) already have SignalR
 installed. See the [SignalR Integration
 document](/Pages/Documents/SignalR-Integration) for more information.
@@ -195,9 +206,121 @@ document](/Pages/Documents/SignalR-Integration) for more information.
 in a [**background job**](/Pages/Documents/Background-Jobs-And-Workers).
 Because of this, notifications may be sent with a small delay.
 
+#### Multiple Notifiers
+
+ASP.NET Boilerplate supports multiple **IRealTimeNotifiers** to notify
+users in different ways.
+
+For example, you can implement an **EmailRealTimeNotifier**:
+
+```c#
+public class EmailRealTimeNotifier : IRealTimeNotifier, ITransientDependency
+{
+    /// <summary>
+    /// If true, this real time notifier will be used for sending real time notifications when it is requested. Otherwise it will not be used.
+    /// <para>
+    /// If false, this realtime notifier will notify any notifications.
+    /// </para>
+    /// </summary>
+    bool UseOnlyIfRequestedAsTarget => false;
+    
+    private readonly IEmailSender _emailSender;
+    private readonly UserManager _userManager;
+
+    public EmailRealTimeNotifier(
+        IEmailSender emailSender,
+        UserManager userManager)
+    {
+        _emailSender = emailSender;
+        _userManager = userManager;
+    }
+
+    public async Task SendNotificationsAsync(UserNotification[] userNotifications)
+    {
+        foreach (var userNotification in userNotifications)
+        {
+            if (userNotification.Notification.Data is MessageNotificationData data)
+            {
+                var user = await _userManager.GetUserByIdAsync(userNotification.UserId);
+                
+                _emailSender.Send(
+                    to: user.EmailAddress,
+                    subject: "You have a new notification!",
+                    body: data.Message,
+                    isBodyHtml: true
+                );
+            }
+        }
+    }
+}
+```
+
+```c#
+public class SMSRealTimeNotifier : IRealTimeNotifier, ITransientDependency
+{
+    /// <summary>
+    /// If true, this real time notifier will be used for sending real time notifications when it is requested. Otherwise it will not be used.
+    /// <para>
+    /// If false, this realtime notifier will notify any notifications.
+    /// </para>
+    /// </summary>
+    bool UseOnlyIfRequestedAsTarget => true;
+
+    private readonly IUserSMSSender _userSmsSender;
+
+    public SMSRealTimeNotifier(IUserSMSSender userSmsSender)
+    {
+        _userSmsSender = userSmsSender;
+    }
+
+    public async Task SendNotificationsAsync(UserNotification[] userNotifications)
+    {
+        foreach (var userNotification in userNotifications)
+        {
+            if (userNotification.Notification.Data is MessageNotificationData data)
+            {
+                 var user = await _userManager.GetUserByIdAsync(userNotification.UserId);
+                _userSmsSender.Send(user, data.Message);
+            }
+        }
+    }
+}
+```
+
+Add it in the **PreInitialize** method of your module:
+
+```c#
+Configuration.Notifications.Notifiers.Add<EmailRealTimeNotifier>();
+Configuration.Notifications.Notifiers.Add<SMSRealTimeNotifier>();
+```
+
+Now you can publish notifications using new realtime notifiers.
+
+```csharp
+public async Task Publish_NewUserCreatedNotification(long userId)
+{
+    var data = new LocalizableMessageNotificationData(new LocalizableString("NewUserCreated", "MyLocalizationSourceName"));
+
+    await _notificationPublisher.PublishAsync("System.NewUserCreated", data);    
+}
+```
+
+That notification will be sent to all subscribed users using `EmailRealTimeNotifier` and `SignalRRealTimeNotifier`(default notifier). Since `SMSRealTimeNotifier`'s `UseOnlyIfRequestedAsTarget` is true, you must define it as a target to send notifications using it.
+
+```csharp
+public async Task Publish_NewUserCreatedNotificationWithSms(long userId)
+{
+    var data = new LocalizableMessageNotificationData(new LocalizableString("NewUserCreated", "MyLocalizationSourceName"));
+
+    await _notificationPublisher.PublishAsync("System.NewUserCreated", data, targetNotifiers: new Type[]{typeof(SMSRealTimeNotifier)});    
+}
+```
+
+Now, it will be sent using only `SMSRealTimeNotifier`i
+
 #### Client-Side
 
-When a real-time notification is received, ASP.NET Boilerplate triggers
+When a real-time notification is received via SignalR, ASP.NET Boilerplate triggers
 a **global event** on the client-side. You can register it like this to get
 notifications:
 

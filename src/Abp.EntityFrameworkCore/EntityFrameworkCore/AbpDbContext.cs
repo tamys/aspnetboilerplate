@@ -1,6 +1,5 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
-using System.ComponentModel.DataAnnotations.Schema;
 using System.Linq;
 using System.Linq.Expressions;
 using System.Reflection;
@@ -11,500 +10,566 @@ using Abp.Configuration.Startup;
 using Abp.Dependency;
 using Abp.Domain.Entities;
 using Abp.Domain.Entities.Auditing;
+using Abp.Domain.Repositories;
 using Abp.Domain.Uow;
+using Abp.EntityFramework;
+using Abp.EntityFrameworkCore.Configuration;
+using Abp.EntityFrameworkCore.Extensions;
+using Abp.EntityFrameworkCore.Utils;
+using Abp.EntityFrameworkCore.ValueConverters;
 using Abp.Events.Bus;
 using Abp.Events.Bus.Entities;
 using Abp.Extensions;
-using Abp.Reflection;
+using Abp.Linq.Expressions;
 using Abp.Runtime.Session;
 using Abp.Timing;
 using Castle.Core.Logging;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.ChangeTracking;
+using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
 
-namespace Abp.EntityFrameworkCore
+namespace Abp.EntityFrameworkCore;
+
+/// <summary>
+/// Base class for all DbContext classes in the application.
+/// </summary>
+public abstract class AbpDbContext : DbContext, ITransientDependency, IShouldInitializeDcontext
 {
     /// <summary>
-    /// Base class for all DbContext classes in the application.
+    /// Used to get current session values.
     /// </summary>
-    public abstract class AbpDbContext : DbContext, ITransientDependency
+    public IAbpSession AbpSession { get; set; }
+
+    /// <summary>
+    /// Used to trigger entity change events.
+    /// </summary>
+    public IEntityChangeEventHelper EntityChangeEventHelper { get; set; }
+
+    /// <summary>
+    /// Reference to the logger.
+    /// </summary>
+    public ILogger Logger { get; set; }
+
+    /// <summary>
+    /// Reference to the event bus.
+    /// </summary>
+    public IEventBus EventBus { get; set; }
+
+    /// <summary>
+    /// Reference to GUID generator.
+    /// </summary>
+    public IGuidGenerator GuidGenerator { get; set; }
+
+    /// <summary>
+    /// Reference to the current UOW provider.
+    /// </summary>
+    public ICurrentUnitOfWorkProvider CurrentUnitOfWorkProvider { get; set; }
+
+    /// <summary>
+    /// Reference to multi tenancy configuration.
+    /// </summary>
+    public IMultiTenancyConfig MultiTenancyConfig { get; set; }
+
+    /// <summary>
+    /// Reference to the ABP entity configuration.
+    /// </summary>
+    public IAbpEfCoreConfiguration AbpEfCoreConfiguration { get; set; }
+
+    /// <summary>
+    /// Can be used to suppress automatically setting TenantId on SaveChanges.
+    /// Default: false.
+    /// </summary>
+    public virtual bool SuppressAutoSetTenantId { get; set; }
+
+    public virtual int? CurrentTenantId => GetCurrentTenantIdOrNull();
+
+    public virtual bool IsSoftDeleteFilterEnabled => CurrentUnitOfWorkProvider?.Current?.IsFilterEnabled(AbpDataFilters.SoftDelete) == true;
+
+    public virtual bool IsMayHaveTenantFilterEnabled => CurrentUnitOfWorkProvider?.Current?.IsFilterEnabled(AbpDataFilters.MayHaveTenant) == true;
+
+    public virtual bool IsMustHaveTenantFilterEnabled => CurrentTenantId != null && CurrentUnitOfWorkProvider?.Current?.IsFilterEnabled(AbpDataFilters.MustHaveTenant) == true;
+
+    private static MethodInfo ConfigureGlobalFiltersMethodInfo = typeof(AbpDbContext).GetMethod(nameof(ConfigureGlobalFilters), BindingFlags.Instance | BindingFlags.NonPublic);
+
+    private static MethodInfo ConfigureGlobalValueConverterMethodInfo = typeof(AbpDbContext).GetMethod(nameof(ConfigureGlobalValueConverter), BindingFlags.Instance | BindingFlags.NonPublic);
+
+    protected readonly DbContextOptions DbContextOptions;
+
+    /// <summary>
+    /// Constructor.
+    /// </summary>
+    protected AbpDbContext(DbContextOptions options)
+        : base(options)
     {
-        /// <summary>
-        /// Used to get current session values.
-        /// </summary>
-        public IAbpSession AbpSession { get; set; }
+        DbContextOptions = options;
+        InitializeDbContext();
+    }
 
-        /// <summary>
-        /// Used to trigger entity change events.
-        /// </summary>
-        public IEntityChangeEventHelper EntityChangeEventHelper { get; set; }
+    private void InitializeDbContext()
+    {
+        SetNullsForInjectedProperties();
+    }
 
-        /// <summary>
-        /// Reference to the logger.
-        /// </summary>
-        public ILogger Logger { get; set; }
+    private void SetNullsForInjectedProperties()
+    {
+        Logger = NullLogger.Instance;
+        AbpSession = NullAbpSession.Instance;
+        EntityChangeEventHelper = NullEntityChangeEventHelper.Instance;
+        GuidGenerator = SequentialGuidGenerator.Instance;
+        EventBus = NullEventBus.Instance;
+        AbpEfCoreConfiguration = NullAbpEfCoreConfiguration.Instance;
+    }
 
-        /// <summary>
-        /// Reference to the event bus.
-        /// </summary>
-        public IEventBus EventBus { get; set; }
+    protected override void OnModelCreating(ModelBuilder modelBuilder)
+    {
+        base.OnModelCreating(modelBuilder);
 
-        /// <summary>
-        /// Reference to GUID generator.
-        /// </summary>
-        public IGuidGenerator GuidGenerator { get; set; }
-
-        /// <summary>
-        /// Reference to the current UOW provider.
-        /// </summary>
-        public ICurrentUnitOfWorkProvider CurrentUnitOfWorkProvider { get; set; }
-
-        /// <summary>
-        /// Reference to multi tenancy configuration.
-        /// </summary>
-        public IMultiTenancyConfig MultiTenancyConfig { get; set; }
-
-        /// <summary>
-        /// Can be used to suppress automatically setting TenantId on SaveChanges.
-        /// Default: false.
-        /// </summary>
-        public virtual bool SuppressAutoSetTenantId { get; set; }
-
-        protected virtual int? CurrentTenantId => GetCurrentTenantIdOrNull();
-
-        protected virtual bool IsSoftDeleteFilterEnabled => CurrentUnitOfWorkProvider?.Current?.IsFilterEnabled(AbpDataFilters.SoftDelete) == true;
-
-        protected virtual bool IsMayHaveTenantFilterEnabled => CurrentUnitOfWorkProvider?.Current?.IsFilterEnabled(AbpDataFilters.MayHaveTenant) == true;
-
-        protected virtual bool IsMustHaveTenantFilterEnabled => CurrentTenantId != null && CurrentUnitOfWorkProvider?.Current?.IsFilterEnabled(AbpDataFilters.MustHaveTenant) == true;
-
-        private static MethodInfo ConfigureGlobalFiltersMethodInfo = typeof(AbpDbContext).GetMethod(nameof(ConfigureGlobalFilters), BindingFlags.Instance | BindingFlags.NonPublic);
-
-        /// <summary>
-        /// Constructor.
-        /// </summary>
-        protected AbpDbContext(DbContextOptions options)
-            : base(options)
+        foreach (var entityType in modelBuilder.Model.GetEntityTypes())
         {
-            InitializeDbContext();
+            ConfigureGlobalFiltersMethodInfo
+                .MakeGenericMethod(entityType.ClrType)
+                .Invoke(this, new object[] { modelBuilder, entityType });
+
+            ConfigureGlobalValueConverterMethodInfo
+                .MakeGenericMethod(entityType.ClrType)
+                .Invoke(this, new object[] { modelBuilder, entityType });
         }
+    }
 
-        private void InitializeDbContext()
+    protected void ConfigureGlobalFilters<TEntity>(ModelBuilder modelBuilder, IMutableEntityType entityType)
+        where TEntity : class
+    {
+        if (entityType.BaseType == null && ShouldFilterEntity<TEntity>(entityType))
         {
-            SetNullsForInjectedProperties();
-        }
-
-        private void SetNullsForInjectedProperties()
-        {
-            Logger = NullLogger.Instance;
-            AbpSession = NullAbpSession.Instance;
-            EntityChangeEventHelper = NullEntityChangeEventHelper.Instance;
-            GuidGenerator = SequentialGuidGenerator.Instance;
-            EventBus = NullEventBus.Instance;
-        }
-
-        protected override void OnModelCreating(ModelBuilder modelBuilder)
-        {
-            base.OnModelCreating(modelBuilder);
-
-            foreach (var entityType in modelBuilder.Model.GetEntityTypes())
+            var filterExpression = CreateFilterExpression<TEntity>(modelBuilder);
+            if (filterExpression != null)
             {
-                ConfigureGlobalFiltersMethodInfo
-                    .MakeGenericMethod(entityType.ClrType)
-                    .Invoke(this, new object[] { modelBuilder, entityType });
+                modelBuilder.Entity<TEntity>().HasQueryFilter(filterExpression);
             }
         }
+    }
 
-        protected void ConfigureGlobalFilters<TEntity>(ModelBuilder modelBuilder, IMutableEntityType entityType)
-            where TEntity : class
+    protected virtual bool ShouldFilterEntity<TEntity>(IMutableEntityType entityType) where TEntity : class
+    {
+        if (typeof(ISoftDelete).IsAssignableFrom(typeof(TEntity)))
         {
-            if (entityType.BaseType == null && ShouldFilterEntity<TEntity>(entityType))
-            {
-                var filterExpression = CreateFilterExpression<TEntity>();
-                if (filterExpression != null)
-                {
-                    modelBuilder.Entity<TEntity>().HasQueryFilter(filterExpression);
-                }
-            }
+            return true;
         }
 
-        protected virtual bool ShouldFilterEntity<TEntity>(IMutableEntityType entityType) where TEntity : class
+        if (typeof(IMayHaveTenant).IsAssignableFrom(typeof(TEntity)))
         {
-            if (typeof(ISoftDelete).IsAssignableFrom(typeof(TEntity)))
-            {
-                return true;
-            }
-
-            if (typeof(IMayHaveTenant).IsAssignableFrom(typeof(TEntity)))
-            {
-                return true;
-            }
-
-            if (typeof(IMustHaveTenant).IsAssignableFrom(typeof(TEntity)))
-            {
-                return true;
-            }
-
-            return false;
+            return true;
         }
 
-        protected virtual Expression<Func<TEntity, bool>> CreateFilterExpression<TEntity>()
-            where TEntity : class
+        if (typeof(IMustHaveTenant).IsAssignableFrom(typeof(TEntity)))
         {
-            Expression<Func<TEntity, bool>> expression = null;
-
-            if (typeof(ISoftDelete).IsAssignableFrom(typeof(TEntity)))
-            {
-                /* This condition should normally be defined as below:
-                 * !IsSoftDeleteFilterEnabled || !((ISoftDelete) e).IsDeleted
-                 * But this causes a problem with EF Core (see https://github.com/aspnet/EntityFrameworkCore/issues/9502)
-                 * So, we made a workaround to make it working. It works same as above.
-                 */
-
-                Expression<Func<TEntity, bool>> softDeleteFilter = e => !((ISoftDelete)e).IsDeleted || ((ISoftDelete)e).IsDeleted != IsSoftDeleteFilterEnabled;
-                expression = expression == null ? softDeleteFilter : CombineExpressions(expression, softDeleteFilter);
-            }
-
-            if (typeof(IMayHaveTenant).IsAssignableFrom(typeof(TEntity)))
-            {
-                /* This condition should normally be defined as below:
-                 * !IsMayHaveTenantFilterEnabled || ((IMayHaveTenant)e).TenantId == CurrentTenantId
-                 * But this causes a problem with EF Core (see https://github.com/aspnet/EntityFrameworkCore/issues/9502)
-                 * So, we made a workaround to make it working. It works same as above.
-                 */
-                Expression<Func<TEntity, bool>> mayHaveTenantFilter = e => ((IMayHaveTenant)e).TenantId == CurrentTenantId || (((IMayHaveTenant)e).TenantId == CurrentTenantId) == IsMayHaveTenantFilterEnabled;
-                expression = expression == null ? mayHaveTenantFilter : CombineExpressions(expression, mayHaveTenantFilter);
-            }
-
-            if (typeof(IMustHaveTenant).IsAssignableFrom(typeof(TEntity)))
-            {
-                /* This condition should normally be defined as below:
-                 * !IsMustHaveTenantFilterEnabled || ((IMustHaveTenant)e).TenantId == CurrentTenantId
-                 * But this causes a problem with EF Core (see https://github.com/aspnet/EntityFrameworkCore/issues/9502)
-                 * So, we made a workaround to make it working. It works same as above.
-                 */
-                Expression<Func<TEntity, bool>> mustHaveTenantFilter = e => ((IMustHaveTenant)e).TenantId == CurrentTenantId || (((IMustHaveTenant)e).TenantId == CurrentTenantId) == IsMustHaveTenantFilterEnabled;
-                expression = expression == null ? mustHaveTenantFilter : CombineExpressions(expression, mustHaveTenantFilter);
-            }
-
-            return expression;
+            return true;
         }
 
-        public override int SaveChanges()
+        return false;
+    }
+
+    protected virtual Expression<Func<TEntity, bool>> CreateFilterExpression<TEntity>(ModelBuilder modelBuilder)
+        where TEntity : class
+    {
+        Expression<Func<TEntity, bool>> expression = null;
+
+        if (typeof(ISoftDelete).IsAssignableFrom(typeof(TEntity)))
         {
-            try
+            Expression<Func<TEntity, bool>> softDeleteFilter = e => !IsSoftDeleteFilterEnabled || !((ISoftDelete)e).IsDeleted;
+            if (UseAbpQueryCompiler())
             {
-                var changeReport = ApplyAbpConcepts();
-                var result = base.SaveChanges();
-                EntityChangeEventHelper.TriggerEvents(changeReport);
-                return result;
+                softDeleteFilter = e => SoftDeleteFilter(((ISoftDelete)e).IsDeleted, true);
+                modelBuilder.ConfigureSoftDeleteDbFunction(typeof(AbpDbContext).GetMethod(nameof(SoftDeleteFilter), new[] { typeof(bool), typeof(bool) })!, this.GetService<AbpEfCoreCurrentDbContext>());
             }
-            catch (DbUpdateConcurrencyException ex)
-            {
-                throw new AbpDbConcurrencyException(ex.Message, ex);
-            }
+            expression = expression == null ? softDeleteFilter : CombineExpressions(expression, softDeleteFilter);
         }
 
-        public override async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default(CancellationToken))
+        if (typeof(IMayHaveTenant).IsAssignableFrom(typeof(TEntity)))
         {
-            try
+            Expression<Func<TEntity, bool>> mayHaveTenantFilter = e => !IsMayHaveTenantFilterEnabled || ((IMayHaveTenant)e).TenantId == CurrentTenantId;
+            if (UseAbpQueryCompiler())
             {
-                var changeReport = ApplyAbpConcepts();
-                var result = await base.SaveChangesAsync(cancellationToken);
-                await EntityChangeEventHelper.TriggerEventsAsync(changeReport);
-                return result;
+                mayHaveTenantFilter = e => MayHaveTenantFilter(((IMayHaveTenant)e).TenantId, CurrentTenantId, true);
+                modelBuilder.ConfigureMayHaveTenantDbFunction(typeof(AbpDbContext).GetMethod(nameof(MayHaveTenantFilter), new[] { typeof(int?), typeof(int?), typeof(bool) })!, this.GetService<AbpEfCoreCurrentDbContext>());
             }
-            catch (DbUpdateConcurrencyException ex)
-            {
-                throw new AbpDbConcurrencyException(ex.Message, ex);
-            }
+            expression = expression == null ? mayHaveTenantFilter : CombineExpressions(expression, mayHaveTenantFilter);
         }
 
-        protected virtual EntityChangeReport ApplyAbpConcepts()
+        if (typeof(IMustHaveTenant).IsAssignableFrom(typeof(TEntity)))
         {
-            var changeReport = new EntityChangeReport();
-
-            var userId = GetAuditUserId();
-
-            foreach (var entry in ChangeTracker.Entries().ToList())
+            Expression<Func<TEntity, bool>> mustHaveTenantFilter = e => !IsMustHaveTenantFilterEnabled || ((IMustHaveTenant)e).TenantId == CurrentTenantId;
+            if (UseAbpQueryCompiler())
             {
-                ApplyAbpConcepts(entry, userId, changeReport);
+                mustHaveTenantFilter = e => MustHaveTenantFilter(((IMustHaveTenant)e).TenantId, CurrentTenantId, true);
+                modelBuilder.ConfigureMustHaveTenantDbFunction(typeof(AbpDbContext).GetMethod(nameof(MustHaveTenantFilter), new[] { typeof(int), typeof(int?), typeof(bool) })!, this.GetService<AbpEfCoreCurrentDbContext>());
             }
-
-            return changeReport;
+            expression = expression == null ? mustHaveTenantFilter : CombineExpressions(expression, mustHaveTenantFilter);
         }
 
-        protected virtual void ApplyAbpConcepts(EntityEntry entry, long? userId, EntityChangeReport changeReport)
-        {
-            switch (entry.State)
-            {
-                case EntityState.Added:
-                    ApplyAbpConceptsForAddedEntity(entry, userId, changeReport);
-                    break;
-                case EntityState.Modified:
-                    ApplyAbpConceptsForModifiedEntity(entry, userId, changeReport);
-                    break;
-                case EntityState.Deleted:
-                    ApplyAbpConceptsForDeletedEntity(entry, userId, changeReport);
-                    break;
-            }
+        return expression;
+    }
 
-            AddDomainEvents(changeReport.DomainEvents, entry.Entity);
+    protected virtual bool UseAbpQueryCompiler()
+    {
+        return DbContextOptions?.FindExtension<AbpDbContextOptionsExtension>() != null && AbpEfCoreConfiguration.UseAbpQueryCompiler;
+    }
+
+    public virtual string GetCompiledQueryCacheKey()
+    {
+        return $"{CurrentTenantId?.ToString() ?? "Null"}:{IsSoftDeleteFilterEnabled}:{IsMayHaveTenantFilterEnabled}:{IsMustHaveTenantFilterEnabled}";
+    }
+
+    protected const string DbFunctionNotSupportedExceptionMessage = "Your EF Core database provider does not support 'User-defined function mapping'." +
+                                                        "Please set 'UseAbpQueryCompiler' of 'IAbpEfCoreConfiguration' to false to disable it." +
+                                                        "See https://learn.microsoft.com/en-us/ef/core/querying/user-defined-function-mapping for more information.";
+
+    public static bool SoftDeleteFilter(bool isDeleted, bool boolParam)
+    {
+        throw new NotSupportedException(DbFunctionNotSupportedExceptionMessage);
+    }
+
+    public static bool MustHaveTenantFilter(int tenantId, int? currentTenantId, bool boolParam)
+    {
+        throw new NotSupportedException(DbFunctionNotSupportedExceptionMessage);
+    }
+
+    public static bool MayHaveTenantFilter(int? tenantId, int? currentTenantId, bool boolParam)
+    {
+        throw new NotSupportedException(DbFunctionNotSupportedExceptionMessage);
+    }
+
+    protected void ConfigureGlobalValueConverter<TEntity>(ModelBuilder modelBuilder, IMutableEntityType entityType)
+        where TEntity : class
+    {
+        if (entityType.BaseType == null &&
+            !typeof(TEntity).IsDefined(typeof(DisableDateTimeNormalizationAttribute), true) &&
+            !typeof(TEntity).IsDefined(typeof(OwnedAttribute), true) &&
+            !entityType.IsOwned())
+        {
+            var dateTimeValueConverter = new AbpDateTimeValueConverter();
+            var dateTimePropertyInfos = DateTimePropertyInfoHelper.GetDatePropertyInfos(typeof(TEntity));
+            dateTimePropertyInfos.DateTimePropertyInfos.ForEach(property =>
+            {
+                modelBuilder
+                    .Entity<TEntity>()
+                    .Property(property.Name)
+                    .HasConversion(dateTimeValueConverter);
+            });
+        }
+    }
+
+    public override int SaveChanges()
+    {
+        try
+        {
+            var changeReport = ApplyAbpConcepts();
+            var result = base.SaveChanges();
+            EntityChangeEventHelper.TriggerEvents(changeReport);
+            return result;
+        }
+        catch (DbUpdateConcurrencyException ex)
+        {
+            throw new AbpDbConcurrencyException(ex.Message, ex);
+        }
+    }
+
+    public override async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default(CancellationToken))
+    {
+        try
+        {
+            var changeReport = ApplyAbpConcepts();
+            var result = await base.SaveChangesAsync(cancellationToken);
+            await EntityChangeEventHelper.TriggerEventsAsync(changeReport);
+            return result;
+        }
+        catch (DbUpdateConcurrencyException ex)
+        {
+            throw new AbpDbConcurrencyException(ex.Message, ex);
+        }
+    }
+
+    public virtual void Initialize(AbpEfDbContextInitializationContext initializationContext)
+    {
+        var uowOptions = initializationContext.UnitOfWork.Options;
+        if (uowOptions.Timeout.HasValue &&
+            Database.IsRelational() &&
+            !Database.GetCommandTimeout().HasValue)
+        {
+            Database.SetCommandTimeout(uowOptions.Timeout.Value.TotalSeconds.To<int>());
         }
 
-        protected virtual void ApplyAbpConceptsForAddedEntity(EntityEntry entry, long? userId, EntityChangeReport changeReport)
+        ChangeTracker.CascadeDeleteTiming = CascadeTiming.OnSaveChanges;
+    }
+
+    protected virtual EntityChangeReport ApplyAbpConcepts()
+    {
+        var changeReport = new EntityChangeReport();
+
+        var userId = GetAuditUserId();
+
+        foreach (var entry in ChangeTracker.Entries().ToList())
         {
-            CheckAndSetId(entry);
-            CheckAndSetMustHaveTenantIdProperty(entry.Entity);
-            CheckAndSetMayHaveTenantIdProperty(entry.Entity);
-            SetCreationAuditProperties(entry.Entity, userId);
-            changeReport.ChangedEntities.Add(new EntityChangeEntry(entry.Entity, EntityChangeType.Created));
+            if (entry.State != EntityState.Modified && entry.CheckOwnedEntityChange())
+            {
+                Entry(entry.Entity).State = EntityState.Modified;
+            }
+
+            ApplyAbpConcepts(entry, userId, changeReport);
         }
 
-        protected virtual void ApplyAbpConceptsForModifiedEntity(EntityEntry entry, long? userId, EntityChangeReport changeReport)
+        return changeReport;
+    }
+
+    protected virtual void ApplyAbpConcepts(EntityEntry entry, long? userId, EntityChangeReport changeReport)
+    {
+        switch (entry.State)
         {
-            SetModificationAuditProperties(entry.Entity, userId);
-            if (entry.Entity is ISoftDelete && entry.Entity.As<ISoftDelete>().IsDeleted)
-            {
-                SetDeletionAuditProperties(entry.Entity, userId);
-                changeReport.ChangedEntities.Add(new EntityChangeEntry(entry.Entity, EntityChangeType.Deleted));
-            }
-            else
-            {
-                changeReport.ChangedEntities.Add(new EntityChangeEntry(entry.Entity, EntityChangeType.Updated));
-            }
+            case EntityState.Added:
+                ApplyAbpConceptsForAddedEntity(entry, userId, changeReport);
+                break;
+            case EntityState.Modified:
+                ApplyAbpConceptsForModifiedEntity(entry, userId, changeReport);
+                break;
+            case EntityState.Deleted:
+                ApplyAbpConceptsForDeletedEntity(entry, userId, changeReport);
+                break;
         }
 
-        protected virtual void ApplyAbpConceptsForDeletedEntity(EntityEntry entry, long? userId, EntityChangeReport changeReport)
+        AddDomainEvents(changeReport.DomainEvents, entry.Entity);
+    }
+
+    protected virtual void ApplyAbpConceptsForAddedEntity(EntityEntry entry, long? userId, EntityChangeReport changeReport)
+    {
+        CheckAndSetId(entry);
+        CheckAndSetMustHaveTenantIdProperty(entry.Entity);
+        CheckAndSetMayHaveTenantIdProperty(entry.Entity);
+        SetCreationAuditProperties(entry.Entity, userId);
+        changeReport.ChangedEntities.Add(new EntityChangeEntry(entry.Entity, EntityChangeType.Created));
+    }
+
+    protected virtual void ApplyAbpConceptsForModifiedEntity(EntityEntry entry, long? userId, EntityChangeReport changeReport)
+    {
+        SetModificationAuditProperties(entry.Entity, userId);
+        if (entry.Entity is ISoftDelete && entry.Entity.As<ISoftDelete>().IsDeleted)
         {
-            CancelDeletionForSoftDelete(entry);
             SetDeletionAuditProperties(entry.Entity, userId);
             changeReport.ChangedEntities.Add(new EntityChangeEntry(entry.Entity, EntityChangeType.Deleted));
         }
-
-        protected virtual void AddDomainEvents(List<DomainEventEntry> domainEvents, object entityAsObj)
+        else
         {
-            var generatesDomainEventsEntity = entityAsObj as IGeneratesDomainEvents;
-            if (generatesDomainEventsEntity == null)
-            {
-                return;
-            }
+            changeReport.ChangedEntities.Add(new EntityChangeEntry(entry.Entity, EntityChangeType.Updated));
+        }
+    }
 
-            if (generatesDomainEventsEntity.DomainEvents.IsNullOrEmpty())
-            {
-                return;
-            }
-
-            domainEvents.AddRange(generatesDomainEventsEntity.DomainEvents.Select(eventData => new DomainEventEntry(entityAsObj, eventData)));
-            generatesDomainEventsEntity.DomainEvents.Clear();
+    protected virtual void ApplyAbpConceptsForDeletedEntity(EntityEntry entry, long? userId, EntityChangeReport changeReport)
+    {
+        if (IsHardDeleteEntity(entry))
+        {
+            changeReport.ChangedEntities.Add(new EntityChangeEntry(entry.Entity, EntityChangeType.Deleted));
+            return;
         }
 
-        protected virtual void CheckAndSetId(EntityEntry entry)
-        {
-            //Set GUID Ids
-            var entity = entry.Entity as IEntity<Guid>;
-            if (entity != null && entity.Id == Guid.Empty)
-            {
-                var idPropertyEntry = entry.Property("Id");
+        CancelDeletionForSoftDelete(entry);
+        SetDeletionAuditProperties(entry.Entity, userId);
+        changeReport.ChangedEntities.Add(new EntityChangeEntry(entry.Entity, EntityChangeType.Deleted));
+    }
 
-                if (idPropertyEntry != null && idPropertyEntry.Metadata.ValueGenerated == ValueGenerated.Never)
-                {
-                    entity.Id = GuidGenerator.Create();
-                }
-            }
+    protected virtual bool IsHardDeleteEntity(EntityEntry entry)
+    {
+        if (!EntityHelper.IsEntity(entry.Entity.GetType()))
+        {
+            return false;
         }
 
-        protected virtual void CheckAndSetMustHaveTenantIdProperty(object entityAsObj)
+        if (CurrentUnitOfWorkProvider?.Current?.Items == null)
         {
-            if (SuppressAutoSetTenantId)
-            {
-                return;
-            }
-
-            //Only set IMustHaveTenant entities
-            if (!(entityAsObj is IMustHaveTenant))
-            {
-                return;
-            }
-
-            var entity = entityAsObj.As<IMustHaveTenant>();
-
-            //Don't set if it's already set
-            if (entity.TenantId != 0)
-            {
-                return;
-            }
-
-            var currentTenantId = GetCurrentTenantIdOrNull();
-
-            if (currentTenantId != null)
-            {
-                entity.TenantId = currentTenantId.Value;
-            }
-            else
-            {
-                throw new AbpException("Can not set TenantId to 0 for IMustHaveTenant entities!");
-            }
+            return false;
         }
 
-        protected virtual void CheckAndSetMayHaveTenantIdProperty(object entityAsObj)
+        if (!CurrentUnitOfWorkProvider.Current.Items.ContainsKey(UnitOfWorkExtensionDataTypes.HardDelete))
         {
-            if (SuppressAutoSetTenantId)
-            {
-                return;
-            }
-
-            //Only works for single tenant applications
-            if (MultiTenancyConfig?.IsEnabled ?? false)
-            {
-                return;
-            }
-
-            //Only set IMayHaveTenant entities
-            if (!(entityAsObj is IMayHaveTenant))
-            {
-                return;
-            }
-
-            var entity = entityAsObj.As<IMayHaveTenant>();
-
-            //Don't set if it's already set
-            if (entity.TenantId != null)
-            {
-                return;
-            }
-
-            entity.TenantId = GetCurrentTenantIdOrNull();
+            return false;
         }
 
-        protected virtual void SetCreationAuditProperties(object entityAsObj, long? userId)
+        var hardDeleteItems = CurrentUnitOfWorkProvider.Current.Items[UnitOfWorkExtensionDataTypes.HardDelete];
+        if (!(hardDeleteItems is HashSet<string> objects))
         {
-            EntityAuditingHelper.SetCreationAuditProperties(MultiTenancyConfig, entityAsObj, AbpSession.TenantId, userId);
+            return false;
         }
 
-        protected virtual void SetModificationAuditProperties(object entityAsObj, long? userId)
+        var currentTenantId = GetCurrentTenantIdOrNull();
+        var hardDeleteKey = EntityHelper.GetHardDeleteKey(entry.Entity, currentTenantId);
+        return objects.Contains(hardDeleteKey);
+    }
+
+    protected virtual void AddDomainEvents(List<DomainEventEntry> domainEvents, object entityAsObj)
+    {
+        var generatesDomainEventsEntity = entityAsObj as IGeneratesDomainEvents;
+        if (generatesDomainEventsEntity == null)
         {
-            EntityAuditingHelper.SetModificationAuditProperties(MultiTenancyConfig, entityAsObj, AbpSession.TenantId, userId);
+            return;
         }
 
-        protected virtual void CancelDeletionForSoftDelete(EntityEntry entry)
+        if (generatesDomainEventsEntity.DomainEvents.IsNullOrEmpty())
         {
-            if (!(entry.Entity is ISoftDelete))
-            {
-                return;
-            }
-
-            entry.Reload();
-            entry.State = EntityState.Modified;
-            entry.Entity.As<ISoftDelete>().IsDeleted = true;
+            return;
         }
 
-        protected virtual void SetDeletionAuditProperties(object entityAsObj, long? userId)
+        domainEvents.AddRange(generatesDomainEventsEntity.DomainEvents.Select(eventData => new DomainEventEntry(entityAsObj, eventData)));
+        generatesDomainEventsEntity.DomainEvents.Clear();
+    }
+
+    protected virtual void CheckAndSetId(EntityEntry entry)
+    {
+        //Set GUID Ids
+        var entity = entry.Entity as IEntity<Guid>;
+        if (entity != null && entity.Id == Guid.Empty)
         {
-            if (entityAsObj is IHasDeletionTime)
+            var idPropertyEntry = entry.Property("Id");
+
+            if (idPropertyEntry != null && idPropertyEntry.Metadata.ValueGenerated == ValueGenerated.Never)
             {
-                var entity = entityAsObj.As<IHasDeletionTime>();
-
-                if (entity.DeletionTime == null)
-                {
-                    entity.DeletionTime = Clock.Now;
-                }
-            }
-
-            if (entityAsObj is IDeletionAudited)
-            {
-                var entity = entityAsObj.As<IDeletionAudited>();
-
-                if (entity.DeleterUserId != null)
-                {
-                    return;
-                }
-
-                if (userId == null)
-                {
-                    entity.DeleterUserId = null;
-                    return;
-                }
-
-                //Special check for multi-tenant entities
-                if (entity is IMayHaveTenant || entity is IMustHaveTenant)
-                {
-                    //Sets LastModifierUserId only if current user is in same tenant/host with the given entity
-                    if ((entity is IMayHaveTenant && entity.As<IMayHaveTenant>().TenantId == AbpSession.TenantId) ||
-                        (entity is IMustHaveTenant && entity.As<IMustHaveTenant>().TenantId == AbpSession.TenantId))
-                    {
-                        entity.DeleterUserId = userId;
-                    }
-                    else
-                    {
-                        entity.DeleterUserId = null;
-                    }
-                }
-                else
-                {
-                    entity.DeleterUserId = userId;
-                }
+                entity.Id = GuidGenerator.Create();
             }
         }
+    }
 
-        protected virtual long? GetAuditUserId()
+    protected virtual void CheckAndSetMustHaveTenantIdProperty(object entityAsObj)
+    {
+        if (SuppressAutoSetTenantId)
         {
-            if (AbpSession.UserId.HasValue &&
-                CurrentUnitOfWorkProvider != null &&
-                CurrentUnitOfWorkProvider.Current != null &&
-                CurrentUnitOfWorkProvider.Current.GetTenantId() == AbpSession.TenantId)
-            {
-                return AbpSession.UserId;
-            }
-
-            return null;
+            return;
         }
 
-        protected virtual int? GetCurrentTenantIdOrNull()
+        //Only set IMustHaveTenant entities
+        if (!(entityAsObj is IMustHaveTenant))
         {
-            if (CurrentUnitOfWorkProvider != null &&
-                CurrentUnitOfWorkProvider.Current != null)
-            {
-                return CurrentUnitOfWorkProvider.Current.GetTenantId();
-            }
-
-            return AbpSession.TenantId;
+            return;
         }
 
-        protected virtual Expression<Func<T, bool>> CombineExpressions<T>(Expression<Func<T, bool>> expression1, Expression<Func<T, bool>> expression2)
+        var entity = entityAsObj.As<IMustHaveTenant>();
+
+        //Don't set if it's already set
+        if (entity.TenantId != 0)
         {
-            var parameter = Expression.Parameter(typeof(T));
-
-            var leftVisitor = new ReplaceExpressionVisitor(expression1.Parameters[0], parameter);
-            var left = leftVisitor.Visit(expression1.Body);
-
-            var rightVisitor = new ReplaceExpressionVisitor(expression2.Parameters[0], parameter);
-            var right = rightVisitor.Visit(expression2.Body);
-
-            return Expression.Lambda<Func<T, bool>>(Expression.AndAlso(left, right), parameter);
+            return;
         }
 
-        class ReplaceExpressionVisitor : ExpressionVisitor
+        var currentTenantId = GetCurrentTenantIdOrNull();
+
+        if (currentTenantId != null)
         {
-            private readonly Expression _oldValue;
-            private readonly Expression _newValue;
-
-            public ReplaceExpressionVisitor(Expression oldValue, Expression newValue)
-            {
-                _oldValue = oldValue;
-                _newValue = newValue;
-            }
-
-            public override Expression Visit(Expression node)
-            {
-                if (node == _oldValue)
-                {
-                    return _newValue;
-                }
-
-                return base.Visit(node);
-            }
+            entity.TenantId = currentTenantId.Value;
         }
+        else
+        {
+            throw new AbpException("Can not set TenantId to 0 for IMustHaveTenant entities!");
+        }
+    }
+
+    protected virtual void CheckAndSetMayHaveTenantIdProperty(object entityAsObj)
+    {
+        if (SuppressAutoSetTenantId)
+        {
+            return;
+        }
+
+        //Only works for single tenant applications
+        if (MultiTenancyConfig?.IsEnabled ?? false)
+        {
+            return;
+        }
+
+        //Only set IMayHaveTenant entities
+        if (!(entityAsObj is IMayHaveTenant))
+        {
+            return;
+        }
+
+        var entity = entityAsObj.As<IMayHaveTenant>();
+
+        //Don't set if it's already set
+        if (entity.TenantId != null)
+        {
+            return;
+        }
+
+        entity.TenantId = GetCurrentTenantIdOrNull();
+    }
+
+    protected virtual void SetCreationAuditProperties(object entityAsObj, long? userId)
+    {
+        EntityAuditingHelper.SetCreationAuditProperties(
+            MultiTenancyConfig,
+            entityAsObj,
+            AbpSession.TenantId,
+            userId,
+            CurrentUnitOfWorkProvider?.Current?.AuditFieldConfiguration
+        );
+    }
+
+    protected virtual void SetModificationAuditProperties(object entityAsObj, long? userId)
+    {
+        EntityAuditingHelper.SetModificationAuditProperties(
+            MultiTenancyConfig,
+            entityAsObj,
+            AbpSession.TenantId,
+            userId,
+            CurrentUnitOfWorkProvider?.Current?.AuditFieldConfiguration
+        );
+    }
+
+    protected virtual void CancelDeletionForSoftDelete(EntityEntry entry)
+    {
+        if (!(entry.Entity is ISoftDelete))
+        {
+            return;
+        }
+
+        entry.Reload();
+        entry.State = EntityState.Modified;
+        entry.Entity.As<ISoftDelete>().IsDeleted = true;
+    }
+
+    protected virtual void SetDeletionAuditProperties(object entityAsObj, long? userId)
+    {
+        EntityAuditingHelper.SetDeletionAuditProperties(
+            MultiTenancyConfig,
+            entityAsObj,
+            AbpSession.TenantId,
+            userId,
+            CurrentUnitOfWorkProvider?.Current?.AuditFieldConfiguration
+        );
+    }
+
+    protected virtual long? GetAuditUserId()
+    {
+        if (AbpSession.UserId.HasValue &&
+            CurrentUnitOfWorkProvider != null &&
+            CurrentUnitOfWorkProvider.Current != null &&
+            CurrentUnitOfWorkProvider.Current.GetTenantId() == AbpSession.TenantId)
+        {
+            return AbpSession.UserId;
+        }
+
+        return null;
+    }
+
+    protected virtual int? GetCurrentTenantIdOrNull()
+    {
+        if (CurrentUnitOfWorkProvider != null &&
+            CurrentUnitOfWorkProvider.Current != null)
+        {
+            return CurrentUnitOfWorkProvider.Current.GetTenantId();
+        }
+
+        return AbpSession.TenantId;
+    }
+
+    protected virtual Expression<Func<T, bool>> CombineExpressions<T>(Expression<Func<T, bool>> expression1, Expression<Func<T, bool>> expression2)
+    {
+        return ExpressionCombiner.Combine(expression1, expression2);
     }
 }

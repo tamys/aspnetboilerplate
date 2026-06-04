@@ -2,12 +2,14 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Linq.Expressions;
+using System.Threading;
 using System.Threading.Tasks;
 using Abp.Dependency;
 using Abp.Domain.Entities;
 using Abp.Domain.Uow;
 using Abp.MultiTenancy;
 using Abp.Reflection.Extensions;
+using Abp.Threading;
 
 namespace Abp.Domain.Repositories
 {
@@ -17,7 +19,7 @@ namespace Abp.Domain.Repositories
     /// </summary>
     /// <typeparam name="TEntity">Type of the Entity for this repository</typeparam>
     /// <typeparam name="TPrimaryKey">Primary key of the entity</typeparam>
-    public abstract class AbpRepositoryBase<TEntity, TPrimaryKey> : IRepository<TEntity, TPrimaryKey>
+    public abstract class AbpRepositoryBase<TEntity, TPrimaryKey> : IRepository<TEntity, TPrimaryKey>, IUnitOfWorkManagerAccessor
         where TEntity : class, IEntity<TPrimaryKey>
     {
         /// <summary>
@@ -28,21 +30,53 @@ namespace Abp.Domain.Repositories
         public IUnitOfWorkManager UnitOfWorkManager { get; set; }
 
         public IIocResolver IocResolver { get; set; }
+        public ICancellationTokenProvider CancellationTokenProvider { get; set; }
 
         static AbpRepositoryBase()
         {
-            var attr = typeof (TEntity).GetSingleAttributeOfTypeOrBaseTypesOrNull<MultiTenancySideAttribute>();
+            var attr = typeof(TEntity).GetSingleAttributeOfTypeOrBaseTypesOrNull<MultiTenancySideAttribute>();
             if (attr != null)
             {
                 MultiTenancySide = attr.Side;
             }
         }
 
+        protected AbpRepositoryBase()
+        {
+            CancellationTokenProvider = NullCancellationTokenProvider.Instance;
+        }
+
         public abstract IQueryable<TEntity> GetAll();
+
+        public virtual IQueryable<TEntity> GetAllReadonly()
+        {
+            return GetAll();
+        }
+
+        public abstract Task<IQueryable<TEntity>> GetAllAsync();
+        public virtual Task<IQueryable<TEntity>> GetAllReadonlyAsync()
+        {
+            return Task.FromResult(GetAllReadonly());
+        }
 
         public virtual IQueryable<TEntity> GetAllIncluding(params Expression<Func<TEntity, object>>[] propertySelectors)
         {
             return GetAll();
+        }
+
+        public virtual IQueryable<TEntity> GetAllReadonlyIncluding(params Expression<Func<TEntity, object>>[] propertySelectors)
+        {
+            return GetAllReadonly();
+        }
+
+        public virtual Task<IQueryable<TEntity>> GetAllIncludingAsync(params Expression<Func<TEntity, object>>[] propertySelectors)
+        {
+            return GetAllAsync();
+        }
+        
+        public virtual Task<IQueryable<TEntity>> GetAllReadonlyIncludingAsync(params Expression<Func<TEntity, object>>[] propertySelectors)
+        {
+            return GetAllReadonlyAsync();
         }
 
         public virtual List<TEntity> GetAllList()
@@ -54,7 +88,7 @@ namespace Abp.Domain.Repositories
         {
             return Task.FromResult(GetAllList());
         }
-        
+
         public virtual List<TEntity> GetAllList(Expression<Func<TEntity, bool>> predicate)
         {
             return GetAll().Where(predicate).ToList();
@@ -69,7 +103,7 @@ namespace Abp.Domain.Repositories
         {
             return queryMethod(GetAll());
         }
-        
+
         public virtual TEntity Get(TPrimaryKey id)
         {
             var entity = FirstOrDefault(id);
@@ -91,7 +125,7 @@ namespace Abp.Domain.Repositories
 
             return entity;
         }
-        
+
         public virtual TEntity Single(Expression<Func<TEntity, bool>> predicate)
         {
             return GetAll().Single(predicate);
@@ -101,7 +135,7 @@ namespace Abp.Domain.Repositories
         {
             return Task.FromResult(Single(predicate));
         }
-        
+
         public virtual TEntity FirstOrDefault(TPrimaryKey id)
         {
             return GetAll().FirstOrDefault(CreateEqualityExpressionForId(id));
@@ -111,7 +145,7 @@ namespace Abp.Domain.Repositories
         {
             return Task.FromResult(FirstOrDefault(id));
         }
-        
+
         public virtual TEntity FirstOrDefault(Expression<Func<TEntity, bool>> predicate)
         {
             return GetAll().FirstOrDefault(predicate);
@@ -121,14 +155,14 @@ namespace Abp.Domain.Repositories
         {
             return Task.FromResult(FirstOrDefault(predicate));
         }
-        
+
         public virtual TEntity Load(TPrimaryKey id)
         {
             return Get(id);
         }
 
         public abstract TEntity Insert(TEntity entity);
-        
+
         public virtual Task<TEntity> InsertAsync(TEntity entity)
         {
             return Task.FromResult(Insert(entity));
@@ -139,9 +173,10 @@ namespace Abp.Domain.Repositories
             return Insert(entity).Id;
         }
 
-        public virtual Task<TPrimaryKey> InsertAndGetIdAsync(TEntity entity)
+        public virtual async Task<TPrimaryKey> InsertAndGetIdAsync(TEntity entity)
         {
-            return Task.FromResult(InsertAndGetId(entity));
+            var insertedEntity = await InsertAsync(entity);
+            return insertedEntity.Id;
         }
 
         public virtual TEntity InsertOrUpdate(TEntity entity)
@@ -150,7 +185,7 @@ namespace Abp.Domain.Repositories
                 ? Insert(entity)
                 : Update(entity);
         }
-        
+
         public virtual async Task<TEntity> InsertOrUpdateAsync(TEntity entity)
         {
             return entity.IsTransient()
@@ -163,13 +198,14 @@ namespace Abp.Domain.Repositories
             return InsertOrUpdate(entity).Id;
         }
 
-        public virtual Task<TPrimaryKey> InsertOrUpdateAndGetIdAsync(TEntity entity)
+        public virtual async Task<TPrimaryKey> InsertOrUpdateAndGetIdAsync(TEntity entity)
         {
-            return Task.FromResult(InsertOrUpdateAndGetId(entity));
+            var insertedEntity = await InsertOrUpdateAsync(entity);
+            return insertedEntity.Id;
         }
 
         public abstract TEntity Update(TEntity entity);
-        
+
         public virtual Task<TEntity> UpdateAsync(TEntity entity)
         {
             return Task.FromResult(Update(entity));
@@ -190,38 +226,42 @@ namespace Abp.Domain.Repositories
         }
 
         public abstract void Delete(TEntity entity);
-        
+
         public virtual Task DeleteAsync(TEntity entity)
         {
             Delete(entity);
-            return Task.FromResult(0);
+            return Task.CompletedTask;
         }
 
         public abstract void Delete(TPrimaryKey id);
-        
+
         public virtual Task DeleteAsync(TPrimaryKey id)
         {
             Delete(id);
-            return Task.FromResult(0);
+            return Task.CompletedTask;
         }
 
         public virtual void Delete(Expression<Func<TEntity, bool>> predicate)
         {
-            foreach (var entity in GetAll().Where(predicate).ToList())
+            foreach (var entity in GetAllList(predicate))
             {
                 Delete(entity);
             }
         }
 
-        public virtual Task DeleteAsync(Expression<Func<TEntity, bool>> predicate)
+        public virtual async Task DeleteAsync(Expression<Func<TEntity, bool>> predicate)
         {
-            Delete(predicate);
-            return Task.FromResult(0);
+            var entities = await GetAllListAsync(predicate);
+
+            foreach (var entity in entities)
+            {
+                await DeleteAsync(entity);
+            }
         }
 
         public virtual int Count()
         {
-            return GetAll().Count();
+            return GetAllReadonly().Count();
         }
 
         public virtual Task<int> CountAsync()
@@ -231,7 +271,7 @@ namespace Abp.Domain.Repositories
 
         public virtual int Count(Expression<Func<TEntity, bool>> predicate)
         {
-            return GetAll().Where(predicate).Count();
+            return GetAllReadonly().Count(predicate);
         }
 
         public virtual Task<int> CountAsync(Expression<Func<TEntity, bool>> predicate)
@@ -241,7 +281,7 @@ namespace Abp.Domain.Repositories
 
         public virtual long LongCount()
         {
-            return GetAll().LongCount();
+            return GetAllReadonly().LongCount();
         }
 
         public virtual Task<long> LongCountAsync()
@@ -251,7 +291,7 @@ namespace Abp.Domain.Repositories
 
         public virtual long LongCount(Expression<Func<TEntity, bool>> predicate)
         {
-            return GetAll().Where(predicate).LongCount();
+            return GetAllReadonly().LongCount(predicate);
         }
 
         public virtual Task<long> LongCountAsync(Expression<Func<TEntity, bool>> predicate)
@@ -263,10 +303,14 @@ namespace Abp.Domain.Repositories
         {
             var lambdaParam = Expression.Parameter(typeof(TEntity));
 
-            var lambdaBody = Expression.Equal(
-                Expression.PropertyOrField(lambdaParam, "Id"),
-                Expression.Constant(id, typeof(TPrimaryKey))
-                );
+            var leftExpression = Expression.PropertyOrField(lambdaParam, "Id");
+
+            var idValue = Convert.ChangeType(id, typeof(TPrimaryKey));
+
+            Expression<Func<object>> closure = () => idValue;
+            var rightExpression = Expression.Convert(closure.Body, leftExpression.Type);
+
+            var lambdaBody = Expression.Equal(leftExpression, rightExpression);
 
             return Expression.Lambda<Func<TEntity, bool>>(lambdaBody, lambdaParam);
         }

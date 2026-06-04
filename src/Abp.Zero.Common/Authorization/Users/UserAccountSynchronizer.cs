@@ -3,6 +3,7 @@ using Abp.Domain.Repositories;
 using Abp.Domain.Uow;
 using Abp.Events.Bus.Entities;
 using Abp.Events.Bus.Handlers;
+using Abp.MultiTenancy;
 
 namespace Abp.Authorization.Users
 {
@@ -13,6 +14,7 @@ namespace Abp.Authorization.Users
         IEventHandler<EntityCreatedEventData<AbpUserBase>>,
         IEventHandler<EntityDeletedEventData<AbpUserBase>>,
         IEventHandler<EntityUpdatedEventData<AbpUserBase>>,
+        IEventHandler<EntityDeletedEventData<AbpTenantBase>>,
         ITransientDependency
     {
         private readonly IRepository<UserAccount, long> _userAccountRepository;
@@ -32,59 +34,95 @@ namespace Abp.Authorization.Users
         /// <summary>
         /// Handles creation event of user
         /// </summary>
-        [UnitOfWork]
         public virtual void HandleEvent(EntityCreatedEventData<AbpUserBase> eventData)
         {
-            using (_unitOfWorkManager.Current.SetTenantId(null))
+            _unitOfWorkManager.WithUnitOfWork(() =>
             {
-                _userAccountRepository.Insert(new UserAccount
+                using (_unitOfWorkManager.Current.SetTenantId(null))
                 {
-                    TenantId = eventData.Entity.TenantId,
-                    UserName = eventData.Entity.UserName,
-                    UserId = eventData.Entity.Id,
-                    EmailAddress = eventData.Entity.EmailAddress,
-                    LastLoginTime = eventData.Entity.LastLoginTime
-                });
-            }
+                    var userAccount = _userAccountRepository.FirstOrDefault(
+                        ua => ua.TenantId == eventData.Entity.TenantId && ua.UserId == eventData.Entity.Id
+                    );
+
+                    if (userAccount == null)
+                    {
+                        _userAccountRepository.Insert(new UserAccount
+                        {
+                            TenantId = eventData.Entity.TenantId,
+                            UserName = eventData.Entity.UserName,
+                            UserId = eventData.Entity.Id,
+                            EmailAddress = eventData.Entity.EmailAddress
+                        });
+                    }
+                    else
+                    {
+                        userAccount.UserName = eventData.Entity.UserName;
+                        userAccount.EmailAddress = eventData.Entity.EmailAddress;
+                        _userAccountRepository.Update(userAccount);
+                    }
+                }
+            });
         }
 
         /// <summary>
         /// Handles deletion event of user
         /// </summary>
         /// <param name="eventData"></param>
-        [UnitOfWork]
         public virtual void HandleEvent(EntityDeletedEventData<AbpUserBase> eventData)
         {
-            using (_unitOfWorkManager.Current.SetTenantId(null))
+            _unitOfWorkManager.WithUnitOfWork(() =>
             {
-                var userAccount =
-                    _userAccountRepository.FirstOrDefault(
-                        ua => ua.TenantId == eventData.Entity.TenantId && ua.UserId == eventData.Entity.Id);
-                if (userAccount != null)
+                using (_unitOfWorkManager.Current.SetTenantId(null))
                 {
-                    _userAccountRepository.Delete(userAccount);
+                    var userAccount = _userAccountRepository.FirstOrDefault(
+                        ua => ua.TenantId == eventData.Entity.TenantId && ua.UserId == eventData.Entity.Id
+                    );
+                    
+                    if (userAccount != null)
+                    {
+                        _userAccountRepository.Delete(userAccount);
+                    }
                 }
-            }
+            });
         }
 
         /// <summary>
         /// Handles update event of user
         /// </summary>
         /// <param name="eventData"></param>
-        [UnitOfWork]
         public virtual void HandleEvent(EntityUpdatedEventData<AbpUserBase> eventData)
         {
-            using (_unitOfWorkManager.Current.SetTenantId(null))
+            _unitOfWorkManager.WithUnitOfWork(() =>
             {
-                var userAccount = _userAccountRepository.FirstOrDefault(ua => ua.TenantId == eventData.Entity.TenantId && ua.UserId == eventData.Entity.Id);
-                if (userAccount != null)
+                using (_unitOfWorkManager.Current.SetTenantId(null))
                 {
-                    userAccount.UserName = eventData.Entity.UserName;
-                    userAccount.EmailAddress = eventData.Entity.EmailAddress;
-                    userAccount.LastLoginTime = eventData.Entity.LastLoginTime;
-                    _userAccountRepository.Update(userAccount);
+                    var userAccount = _userAccountRepository.FirstOrDefault(ua =>
+                        ua.TenantId == eventData.Entity.TenantId && ua.UserId == eventData.Entity.Id
+                    );
+                    
+                    if (userAccount != null)
+                    {
+                        userAccount.UserName = eventData.Entity.UserName;
+                        userAccount.EmailAddress = eventData.Entity.EmailAddress;
+                        _userAccountRepository.Update(userAccount);
+                    }
                 }
-            }
+            });
+        }
+
+        /// <summary>
+        /// Handles deletion event of tenant
+        /// </summary>
+        /// <param name="eventData"></param>
+        public virtual void HandleEvent(EntityDeletedEventData<AbpTenantBase> eventData)
+        {
+            _unitOfWorkManager.WithUnitOfWork(() =>
+            {
+                using (_unitOfWorkManager.Current.SetTenantId(null))
+                {
+                    _userAccountRepository.Delete(ua => ua.TenantId == eventData.Entity.Id);
+                }
+            });
         }
     }
 }

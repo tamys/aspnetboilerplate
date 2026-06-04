@@ -38,6 +38,15 @@ namespace Abp.Domain.Uow
             get { return _filters.ToImmutableList(); }
         }
         private readonly List<DataFilterConfiguration> _filters;
+        
+        /// <inheritdoc/>
+        public IReadOnlyList<AuditFieldConfiguration> AuditFieldConfiguration
+        {
+            get { return _auditFieldConfiguration.ToImmutableList(); }
+        }
+        private readonly List<AuditFieldConfiguration> _auditFieldConfiguration;
+
+        public Dictionary<string, object> Items { get; set; }
 
         /// <summary>
         /// Gets default UOW options.
@@ -87,7 +96,7 @@ namespace Abp.Domain.Uow
         /// Constructor.
         /// </summary>
         protected UnitOfWorkBase(
-            IConnectionStringResolver connectionStringResolver, 
+            IConnectionStringResolver connectionStringResolver,
             IUnitOfWorkDefaultOptions defaultOptions,
             IUnitOfWorkFilterExecuter filterExecuter)
         {
@@ -97,8 +106,9 @@ namespace Abp.Domain.Uow
 
             Id = Guid.NewGuid().ToString("N");
             _filters = defaultOptions.Filters.ToList();
-
+            _auditFieldConfiguration = defaultOptions.AuditFieldConfiguration.ToList();
             AbpSession = NullAbpSession.Instance;
+            Items = new Dictionary<string, object>();
         }
 
         /// <inheritdoc/>
@@ -165,6 +175,42 @@ namespace Abp.Domain.Uow
 
             return new DisposeAction(() => DisableFilter(enabledFilters.ToArray()));
         }
+        
+        /// <inheritdoc/>
+        public IDisposable DisableAuditing(params string[] fieldNames)
+        {
+            var disabledAuditFields = new List<string>();
+
+            foreach (var fieldName in fieldNames)
+            {
+                var fieldIndex = GetAuditFieldIndex(fieldName);
+                if (_auditFieldConfiguration[fieldIndex].IsSavingEnabled)
+                {
+                    disabledAuditFields.Add(fieldName);
+                    _auditFieldConfiguration[fieldIndex] = new AuditFieldConfiguration(_auditFieldConfiguration[fieldIndex].FieldName, false);
+                }
+            }
+            
+            return new DisposeAction(() => EnableAuditing(disabledAuditFields.ToArray()));
+        }
+
+        /// <inheritdoc/>
+        public IDisposable EnableAuditing(params string[] fieldNames)
+        {
+            var enabledAuditFields = new List<string>();
+
+            foreach (var fieldName in fieldNames)
+            {
+                var fieldIndex = GetAuditFieldIndex(fieldName);
+                if (!_auditFieldConfiguration[fieldIndex].IsSavingEnabled)
+                {
+                    enabledAuditFields.Add(fieldName);
+                    _auditFieldConfiguration[fieldIndex] = new AuditFieldConfiguration(_auditFieldConfiguration[fieldIndex].FieldName, true);
+                }
+            }
+
+            return new DisposeAction(() => DisableAuditing(enabledAuditFields.ToArray()));
+        }
 
         /// <inheritdoc/>
         public bool IsFilterEnabled(string filterName)
@@ -199,6 +245,10 @@ namespace Abp.Domain.Uow
                 if (hasOldValue)
                 {
                     SetFilterParameter(filterName, parameterName, oldValue);
+                }
+                else
+                {
+                    Completed += (s, e) => _filters[filterIndex].FilterParameters[parameterName] = default;
                 }
             });
         }
@@ -301,7 +351,7 @@ namespace Abp.Domain.Uow
         /// </summary>
         protected virtual void BeginUow()
         {
-            
+
         }
 
         /// <summary>
@@ -337,6 +387,11 @@ namespace Abp.Domain.Uow
         protected virtual string ResolveConnectionString(ConnectionStringResolveArgs args)
         {
             return ConnectionStringResolver.GetNameOrConnectionString(args);
+        }
+
+        protected virtual async Task<string> ResolveConnectionStringAsync(ConnectionStringResolveArgs args)
+        {
+            return await ConnectionStringResolver.GetNameOrConnectionStringAsync(args);
         }
 
         /// <summary>
@@ -436,6 +491,17 @@ namespace Abp.Domain.Uow
         private int GetFilterIndex(string filterName)
         {
             var filterIndex = _filters.FindIndex(f => f.FilterName == filterName);
+            if (filterIndex < 0)
+            {
+                throw new AbpException("Unknown filter name: " + filterName + ". Be sure this filter is registered before.");
+            }
+
+            return filterIndex;
+        }
+        
+        private int GetAuditFieldIndex(string filterName)
+        {
+            var filterIndex = _auditFieldConfiguration.FindIndex(f => f.FieldName == filterName);
             if (filterIndex < 0)
             {
                 throw new AbpException("Unknown filter name: " + filterName + ". Be sure this filter is registered before.");

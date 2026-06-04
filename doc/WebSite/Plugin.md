@@ -1,6 +1,6 @@
 ### Introduction
 
-In this tutorial, a plugin example will be developed to learn how to crate a plugin and use it in an application. This plugin that named `DatabaseMaintainer` will remove audit logs in a period.
+In this tutorial, a plugin example will be developed to learn how to create a plugin and use it in an application. This plugin that is named `DatabaseMaintainer` will remove audit logs in a given period.
 
 ### Create a Plugin
 
@@ -39,7 +39,7 @@ namespace DatabaseMaintainer
 }
 ```
 
-- Add a background worker 
+- Add a background worker
 
 ````c#
 using System;
@@ -82,31 +82,35 @@ namespace DatabaseMaintainer
 }
 ````
 
-Project solution looks like following:
+Project solution looks like the following:
 
 <img src="images/plugin-solution.png" alt="plugin-solution" class="img-thumbnail" />
 
 #### Build the Plugin
 
-Build project in release mode. `DatabaseMaintainer.dll` will be created in folder 
-`DatabaseMaintainer\DatabaseMaintainer\bin\Release\netcoreapp2.1`.
+Build project in release mode. `DatabaseMaintainer.dll` will be created in the folder
+`DatabaseMaintainer\DatabaseMaintainer\bin\Release\net5.0`.
 
 ### Add Plugin to the Application
 
-Following example, it will be loaded from `wwwroot` folder. You can change plugins folder location.
-First following line should be added to application `Startup.cs` that you want to add to application (MVC or Host). 
+In the following example, it will be loaded from the `wwwroot` folder. You can change the plugins folder location.
+First, the following line should be added to the `Startup.cs` of the application (MVC or Host) that you want to add the plugin to.
 
-`options.PlugInSources.AddFolder(Path.Combine(_hostingEnvironment.WebRootPath, "Plugins"), SearchOption.AllDirectories);`
+```c#
+options.PlugInSources.AddFolder(Path.Combine(_hostingEnvironment.WebRootPath, "Plugins"), SearchOption.AllDirectories);
+```
 
 Latest Startup.cs  
 
 ```c#
 public class Startup
 {
+    private readonly IHostingEnvironment _hostingEnvironment;
     private readonly IConfigurationRoot _appConfiguration;
 
     public Startup(IHostingEnvironment env)
     {
+        _hostingEnvironment = env;
         _appConfiguration = env.GetAppConfiguration();
     }
 
@@ -124,7 +128,9 @@ public class Startup
             options.PlugInSources.AddFolder(Path.Combine(_hostingEnvironment.WebRootPath, "Plugins"), SearchOption.AllDirectories);
         );
     }
-...
+
+    ...
+}
 ```
 
 And copy `DatabaseMaintainer.dll` from plugin to application `.Mvc/wwwroot/Plugins` folder.
@@ -133,6 +139,6 @@ And copy `DatabaseMaintainer.dll` from plugin to application `.Mvc/wwwroot/Plugi
 
 ### Run the Application
 
-Run project and see Logs.txt to check if it works.
+Run the project and see Logs.txt to check if it works.
 
 <img src="images/plugin-log.png" alt="plugin-log" class="img-thumbnail" />

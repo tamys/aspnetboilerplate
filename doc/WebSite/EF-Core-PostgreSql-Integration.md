@@ -44,16 +44,13 @@ Change the connection string to your PostgreSQL connection in ***.Web.Mvc/appset
 }
 ```
 
-#### A workaround
+### Configure DateTime Handling
 
-To prevent EF Core from calling `Program.BuildWebHost()`, rename `BuildWebHost`. For example, change it to `InitWebHost`. 
-To understand why it needs to be renamed, check the following issues:
+Starting from **Npgsql** 6.0, Npgsql changed the datetime handling, see the related [issue](https://github.com/npgsql/efcore.pg/issues/2000). This causes an exception in AspNet Boilerplate's default template. So, you need to switch back to old behavior by following [https://www.npgsql.org/efcore/release-notes/6.0.html#opting-out-of-the-new-timestamp-mapping-logic](https://www.npgsql.org/efcore/release-notes/6.0.html#opting-out-of-the-new-timestamp-mapping-logic). Basically you need to set;
 
-> **Reason** : [EF Core 2.0: design-time DbContext discovery changes](https://github.com/aspnet/EntityFrameworkCore/issues/9033)
-> 
-> **Workaround** : [Design: Allow IDesignTimeDbContextFactory to short-circuit service provider creation](https://github.com/aspnet/EntityFrameworkCore/issues/9076#issuecomment-313278753)
->
-> **NOTE :** If you don't rename BuildWebHost, you'll get an error running the BuildWebHost method.
+````c#
+AppContext.SetSwitch("Npgsql.DisableDateTimeInfinityConversions", true);
+````
 
 ### Create Database
 
@@ -81,7 +78,7 @@ public class PostgreSqlDemoDbContext : AbpZeroDbContext<Tenant, Role, User, Post
 }
 ```
 
-Delete the ***.EntityFrameworkCore/Migrations** folder,
+Remove all migration classes(include `DbContextModelSnapshot`) under **\*.EntityFrameworkCore/Migrations** folder.
 because `Npgsql.EntityFrameworkCore.PostgreSQL` will add some of its own configuration to work with Entity Framework Core.
 
 Now it's ready to build database.
@@ -92,3 +89,5 @@ Now it's ready to build database.
 - Run the `update-database` command.
 
 The PostgreSQL integration is now complete. You can now run your project with PostgreSQL.
+
+**Note:** By default ABP's UnitOfWork uses IsolationLevel.ReadUncommitted but it is treated as IsolationLevel.ReadCommitted in PostgreSQL. This behavior can cause problems in some cases. For more information [see](https://github.com/aspnetboilerplate/aspnetboilerplate/issues/3369#issuecomment-433733606).

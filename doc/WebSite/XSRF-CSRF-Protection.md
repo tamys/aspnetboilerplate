@@ -37,7 +37,7 @@ browser clients**.
 
 #### Features
 
-ASP.NET MVC has it's own built-in AntiForgery system, but there are a few weaknesses:
+ASP.NET MVC has its own built-in AntiForgery system, but there are a few weaknesses:
 
 -   It requires you to add the **ValidateAntiForgeryToken** attribute to all
     actions that need to be protected. You could potentially **forget** to add
@@ -135,24 +135,24 @@ controller like the following:
     using System.Net.Http;
     using Abp.Web.Security.AntiForgery;
     using Abp.WebApi.Controllers;
-    
+
     namespace AngularForgeryDemo.Controllers
     {
         public class AntiForgeryController : AbpApiController
         {
             private readonly IAbpAntiForgeryManager _antiForgeryManager;
-    
+
             public AntiForgeryController(IAbpAntiForgeryManager antiForgeryManager)
             {
                 _antiForgeryManager = antiForgeryManager;
             }
-    
+
             public HttpResponseMessage GetTokenCookie()
             {
                 var response = new HttpResponseMessage();
-    
+
                 _antiForgeryManager.SetCookie(response.Headers);
-    
+
                 return response;
             }
         }
@@ -223,6 +223,26 @@ That's all we must do for ASP.NET Core MVC applications. All AJAX
 requests will work automatically. For non-ajax form submits, ASP.NET
 Core automatically adds an anti-forgery token field if you use one of
 asp-\* tags in your form. So there's normally no need to use @Html.AntiForgeryToken().
+
+_________
+
+Note: If you host your application in multiple instances and use redis, you should also use redis for antiforgery token.
+
+* Add `Microsoft.AspNetCore.DataProtection.StackExchangeRedis` nuget package to your `Web` project.
+* Add following code to `Startup.cs` 
+
+```csharp
+public void ConfigureServices(IServiceCollection services)
+{
+    services.AddDataProtection()
+        .PersistKeysToStackExchangeRedis(
+            ConnectionMultiplexer.Connect(_appConfiguration["Abp:RedisCache:ConnectionString"])
+            , "DataProtection-Keys"
+        );
+    ...
+}
+```
+____________
 
 ### Client Libraries
 

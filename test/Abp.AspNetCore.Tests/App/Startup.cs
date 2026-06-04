@@ -1,41 +1,53 @@
-﻿using System;
+using System;
 using Abp.AspNetCore.Configuration;
 using Abp.AspNetCore.Mvc.Extensions;
 using Abp.AspNetCore.TestBase;
-using Abp.Reflection.Extensions;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
-using Microsoft.AspNetCore.Mvc.ApplicationParts;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
-namespace Abp.AspNetCore.App
+namespace Abp.AspNetCore.App;
+
+public class Startup
 {
-    public class Startup
+    public IServiceProvider ConfigureServices(IServiceCollection services)
     {
-        public IServiceProvider ConfigureServices(IServiceCollection services)
+        services.AddMvc()
+            .AddXmlSerializerFormatters();
+
+        services.AddAuthentication(options =>
         {
-            var mvc = services.AddMvc();
+            options.DefaultScheme = "Cookies";
+        }).AddCookie();
 
-            mvc.PartManager.ApplicationParts.Add(new AssemblyPart(typeof(AbpAspNetCoreModule).GetAssembly()));
-
-            //Configure Abp and Dependency Injection
-            return services.AddAbp<AppModule>(options =>
-            {
-                //Test setup
-                options.SetupTest();
-            });
-        }
-
-        // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
-        public void Configure(IApplicationBuilder app, IHostingEnvironment env, ILoggerFactory loggerFactory)
+        //Configure Abp and Dependency Injection
+        return services.AddAbp<AppModule>(options =>
         {
-            app.UseAbp(); //Initializes ABP framework.
+            //Test setup
+            options.SetupTest();
+        });
+    }
 
-            app.UseMvc(routes =>
-            {
-                app.ApplicationServices.GetRequiredService<IAbpAspNetCoreConfiguration>().RouteConfiguration.ConfigureAll(routes);
-            });
-        }
+    // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
+    public void Configure(IApplicationBuilder app, IWebHostEnvironment env, ILoggerFactory loggerFactory)
+    {
+        app.UseAbp(); //Initializes ABP framework.
+
+        app.UseRouting();
+
+        app.UseAuthentication();
+        app.UseAbpAuthorizationExceptionHandling();
+        app.UseAuthorization();
+
+        app.UseEndpoints(endpoints =>
+        {
+            endpoints.MapControllerRoute("defaultWithArea", "{area}/{controller=Home}/{action=Index}/{id?}");
+            endpoints.MapControllerRoute("default", "{controller=Home}/{action=Index}/{id?}");
+
+            app.ApplicationServices.GetRequiredService<IAbpAspNetCoreConfiguration>()
+                                    .EndpointConfiguration
+                                    .ConfigureAllEndpoints(endpoints);
+        });
     }
 }

@@ -16,8 +16,6 @@ Some configuration and workarounds are needed to use SQLite with ASP.NET Core an
 
 Since SQLite doesn't support multithreading, transactions should be disabled in the `SQLiteDemoEntityFrameworkModule.PreInitialize()` method.
 
-> NOTE:Check [here](https://github.com/XdX-Software/EasyDDD/issues/1) for more info and workarounds.
-
 ```c#
 [DependsOn(
     typeof(SQLiteDemoCoreModule), 
@@ -49,7 +47,7 @@ public static class SqliteDemoDbContextConfigurer
         builder.UseSqlite(connection);
     }
  }
- ```
+```
 
 #### Configure connection string 
 
@@ -58,27 +56,16 @@ Change the connection string to your SQLite connection in ***.Web.Mvc/appsetting
 ```js
 {
   "ConnectionStrings": {
-    "Default": "Data Source=SqliteDemoDb.db"
+    "Default": "Data Source=SqliteDemoDb.db;Cache=Shared"
   },
   ...
 }
 
 ```
 
-#### A workaround
-
-To prevent EF Core from calling `Program.BuildWebHost()` rename `BuildWebHost`. For example, change it to `InitWebHost`. 
-To understand why it needs to be renamed check the following issues,
-
-> **Reason** : [EF Core 2.0: design-time DbContext discovery changes](https://github.com/aspnet/EntityFrameworkCore/issues/9033)
-> 
-> **Workaround** : [Design: Allow IDesignTimeDbContextFactory to short-circuit service provider creation](https://github.com/aspnet/EntityFrameworkCore/issues/9076#issuecomment-313278753)
->
-> **NOTE :** If you don't rename BuildWebHost, you'll get an error running the BuildWebHost method.
-
 ### Create Database
 
-Remove all migration classes under **\*.EntityFrameworkCore/Migrations** folder before creating database.
+Remove all migration classes(include `DbContextModelSnapshot`) under **\*.EntityFrameworkCore/Migrations** folder before creating database.
 `Microsoft.EntityFrameworkCore.Sqlite` will add some of its own configuration to work with Entity Framework Core.
 
 Now it's ready to build the database.

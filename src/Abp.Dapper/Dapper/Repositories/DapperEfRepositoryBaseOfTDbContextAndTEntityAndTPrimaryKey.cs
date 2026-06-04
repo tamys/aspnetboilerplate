@@ -1,8 +1,10 @@
 ﻿using System.Data;
 using System.Data.Common;
-
+using System.Threading.Tasks;
 using Abp.Data;
 using Abp.Domain.Entities;
+using Abp.Domain.Uow;
+using Abp.Extensions;
 
 namespace Abp.Dapper.Repositories
 {
@@ -11,10 +13,14 @@ namespace Abp.Dapper.Repositories
 
     {
         private readonly IActiveTransactionProvider _activeTransactionProvider;
+        private readonly ICurrentUnitOfWorkProvider _currentUnitOfWorkProvider;
 
-        public DapperEfRepositoryBase(IActiveTransactionProvider activeTransactionProvider) : base(activeTransactionProvider)
+        public DapperEfRepositoryBase(IActiveTransactionProvider activeTransactionProvider,
+            ICurrentUnitOfWorkProvider currentUnitOfWorkProvider)
+            : base(activeTransactionProvider)
         {
             _activeTransactionProvider = activeTransactionProvider;
+            _currentUnitOfWorkProvider = currentUnitOfWorkProvider;
         }
 
         public ActiveTransactionProviderArgs ActiveTransactionProviderArgs
@@ -29,8 +35,32 @@ namespace Abp.Dapper.Repositories
             }
         }
 
-        public override DbConnection Connection => (DbConnection)_activeTransactionProvider.GetActiveConnection(ActiveTransactionProviderArgs);
+        public override DbConnection GetConnection()
+        {
+            return (DbConnection) _activeTransactionProvider.GetActiveConnection(ActiveTransactionProviderArgs);
+        }
 
-        public override DbTransaction ActiveTransaction => (DbTransaction)_activeTransactionProvider.GetActiveTransaction(ActiveTransactionProviderArgs);
+        public override async Task<DbConnection> GetConnectionAsync()
+        {
+            var connection = await _activeTransactionProvider
+                .GetActiveConnectionAsync(ActiveTransactionProviderArgs);
+
+            return (DbConnection) connection;
+        }
+
+        public override DbTransaction GetActiveTransaction()
+        {
+            return (DbTransaction) _activeTransactionProvider.GetActiveTransaction(ActiveTransactionProviderArgs);
+        }
+
+        public override async Task<DbTransaction> GetActiveTransactionAsync()
+        {
+            var transaction = await _activeTransactionProvider
+                .GetActiveTransactionAsync(ActiveTransactionProviderArgs);
+
+            return (DbTransaction) transaction;
+        }
+
+        public override int? Timeout => _currentUnitOfWorkProvider.Current?.Options.Timeout?.TotalSeconds.To<int>();
     }
 }

@@ -2,6 +2,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Globalization;
+using System.Linq;
 
 namespace Abp.Localization.Dictionaries
 {
@@ -37,9 +38,24 @@ namespace Abp.Localization.Dictionaries
         }
 
         /// <inheritdoc/>
+        public virtual string TryGetKey(string value)
+        {
+            var found = _dictionary.Values.FirstOrDefault(x => x.Value == value);
+            return found?.Name;
+        }
+
+        /// <inheritdoc/>
         public virtual LocalizedString GetOrNull(string name)
         {
             return _dictionary.TryGetValue(name, out var localizedString) ? localizedString : null;
+        }
+
+        /// <inheritdoc/>
+        public virtual IReadOnlyList<LocalizedString> GetStringsOrNull(List<string> names)
+        {
+            return names.Select(name => _dictionary.Values.FirstOrDefault(x => x.Name == name) ??
+                                        new LocalizedString(name, null, CultureInfo))
+                .ToImmutableList();
         }
 
         /// <inheritdoc/>

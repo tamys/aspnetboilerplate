@@ -1,13 +1,17 @@
+using System.Threading.Tasks;
 using Abp.MultiTenancy;
 using Microsoft.EntityFrameworkCore;
 
-namespace Abp.EntityFrameworkCore
-{
-    public interface IDbContextProvider<out TDbContext>
-        where TDbContext : DbContext
-    {
-        TDbContext GetDbContext();
+namespace Abp.EntityFrameworkCore;
 
-        TDbContext GetDbContext(MultiTenancySides? multiTenancySide );
-    }
+public interface IDbContextProvider<TDbContext>
+    where TDbContext : DbContext
+{
+    Task<TDbContext> GetDbContextAsync();
+
+    Task<TDbContext> GetDbContextAsync(MultiTenancySides? multiTenancySide);
+
+    TDbContext GetDbContext();
+
+    TDbContext GetDbContext(MultiTenancySides? multiTenancySide);
 }

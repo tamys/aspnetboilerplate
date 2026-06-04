@@ -9,7 +9,7 @@ namespace Abp.Dapper.Tests.Entities
     [Table("ProductDetails")]
     public class ProductDetail : FullAuditedEntity, IMustHaveTenant
     {
-        protected ProductDetail()
+        public ProductDetail()
         {
         }
 

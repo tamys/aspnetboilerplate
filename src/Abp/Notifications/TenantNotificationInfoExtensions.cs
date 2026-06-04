@@ -26,7 +26,6 @@ namespace Abp.Notifications
                 NotificationName = tenantNotificationInfo.NotificationName,
                 Data = tenantNotificationInfo.Data.IsNullOrEmpty() ? null : JsonConvert.DeserializeObject(tenantNotificationInfo.Data, Type.GetType(tenantNotificationInfo.DataTypeName)) as NotificationData,
                 EntityTypeName = tenantNotificationInfo.EntityTypeName,
-                EntityType = entityType,
                 EntityId = tenantNotificationInfo.EntityId.IsNullOrEmpty() ? null : JsonConvert.DeserializeObject(tenantNotificationInfo.EntityId, EntityHelper.GetPrimaryKeyType(entityType)),
                 Severity = tenantNotificationInfo.Severity,
                 CreationTime = tenantNotificationInfo.CreationTime

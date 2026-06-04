@@ -1,9 +1,11 @@
+using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 
-namespace Abp.EntityFrameworkCore.Repositories
+namespace Abp.EntityFrameworkCore.Repositories;
+
+public interface IRepositoryWithDbContext
 {
-    public interface IRepositoryWithDbContext
-    {
-        DbContext GetDbContext();
-    }
+    DbContext GetDbContext();
+
+    Task<DbContext> GetDbContextAsync();
 }

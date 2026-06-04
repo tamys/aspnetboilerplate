@@ -2,13 +2,21 @@ using Abp.Web.Models;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Filters;
 
-namespace Abp.AspNetCore.Mvc.Results.Wrapping
+namespace Abp.AspNetCore.Mvc.Results.Wrapping;
+
+public class AbpEmptyActionResultWrapper : IAbpActionResultWrapper
 {
-    public class AbpEmptyActionResultWrapper : IAbpActionResultWrapper
+    public void Wrap(FilterContext context)
     {
-        public void Wrap(ResultExecutingContext actionResult)
+        switch (context)
         {
-            actionResult.Result = new ObjectResult(new AjaxResponse());
+            case ResultExecutingContext resultExecutingContext:
+                resultExecutingContext.Result = new ObjectResult(new AjaxResponse());
+                return;
+
+            case PageHandlerExecutedContext pageHandlerExecutedContext:
+                pageHandlerExecutedContext.Result = new ObjectResult(new AjaxResponse());
+                return;
         }
     }
 }

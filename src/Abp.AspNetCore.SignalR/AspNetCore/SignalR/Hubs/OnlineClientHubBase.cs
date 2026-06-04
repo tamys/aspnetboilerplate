@@ -1,81 +1,62 @@
-﻿using System;
+using System;
 using System.Threading.Tasks;
-using Abp.Auditing;
 using Abp.Dependency;
 using Abp.RealTime;
 using Abp.Runtime.Session;
 using Castle.Core.Logging;
 
-namespace Abp.AspNetCore.SignalR.Hubs
+namespace Abp.AspNetCore.SignalR.Hubs;
+
+public abstract class OnlineClientHubBase : AbpHubBase, ITransientDependency
 {
-    public abstract class OnlineClientHubBase : AbpHubBase, ITransientDependency
+    protected IOnlineClientManager OnlineClientManager { get; }
+    protected IOnlineClientInfoProvider OnlineClientInfoProvider { get; }
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="AbpCommonHub"/> class.
+    /// </summary>
+    protected OnlineClientHubBase(
+        IOnlineClientManager onlineClientManager,
+        IOnlineClientInfoProvider clientInfoProvider)
     {
-        protected IOnlineClientManager OnlineClientManager { get; }
-        protected IClientInfoProvider ClientInfoProvider { get; }
+        OnlineClientManager = onlineClientManager;
+        OnlineClientInfoProvider = clientInfoProvider;
 
-        /// <summary>
-        /// Initializes a new instance of the <see cref="AbpCommonHub"/> class.
-        /// </summary>
-        protected OnlineClientHubBase(
-            IOnlineClientManager onlineClientManager,
-            IClientInfoProvider clientInfoProvider)
+        Logger = NullLogger.Instance;
+#pragma warning disable CS0618 // Type or member is obsolete, this line will be removed once the AbpSession property is removed
+        AbpSession = NullAbpSession.Instance;
+#pragma warning restore CS0618 // Type or member is obsolete, this line will be removed once the AbpSession property is removed
+    }
+
+    public override async Task OnConnectedAsync()
+    {
+        await base.OnConnectedAsync();
+
+        var client = CreateClientForCurrentConnection();
+
+        Logger.Debug("A client is connected: " + client);
+
+        await OnlineClientManager.AddAsync(client);
+    }
+
+    public override async Task OnDisconnectedAsync(Exception exception)
+    {
+        await base.OnDisconnectedAsync(exception);
+
+        Logger.Debug("A client is disconnected: " + Context.ConnectionId);
+
+        try
         {
-            OnlineClientManager = onlineClientManager;
-            ClientInfoProvider = clientInfoProvider;
-
-            Logger = NullLogger.Instance;
-            AbpSession = NullAbpSession.Instance;
+            await OnlineClientManager.RemoveAsync(Context.ConnectionId);
         }
-
-        public override async Task OnConnectedAsync()
+        catch (Exception ex)
         {
-            await base.OnConnectedAsync();
-
-            var client = CreateClientForCurrentConnection();
-
-            Logger.Debug("A client is connected: " + client);
-
-            OnlineClientManager.Add(client);
+            Logger.Warn(ex.ToString(), ex);
         }
+    }
 
-        public override async Task OnDisconnectedAsync(Exception exception)
-        {
-            await base.OnDisconnectedAsync(exception);
-
-            Logger.Debug("A client is disconnected: " + Context.ConnectionId);
-
-            try
-            {
-                OnlineClientManager.Remove(Context.ConnectionId);
-            }
-            catch (Exception ex)
-            {
-                Logger.Warn(ex.ToString(), ex);
-            }
-        }
-
-        protected virtual IOnlineClient CreateClientForCurrentConnection()
-        {
-            return new OnlineClient(
-                Context.ConnectionId,
-                GetIpAddressOfClient(),
-                AbpSession.TenantId,
-                AbpSession.UserId
-            );
-        }
-
-        protected virtual string GetIpAddressOfClient()
-        {
-            try
-            {
-                return ClientInfoProvider.ClientIpAddress;
-            }
-            catch (Exception ex)
-            {
-                Logger.Error("Can not find IP address of the client! connectionId: " + Context.ConnectionId);
-                Logger.Error(ex.Message, ex);
-                return "";
-            }
-        }
+    protected virtual IOnlineClient CreateClientForCurrentConnection()
+    {
+        return OnlineClientInfoProvider.CreateClientForCurrentConnection(Context);
     }
 }

@@ -2,13 +2,34 @@
 
 The easiest way of starting a new project using ABP with **ASP.NET Core MVC** is to create a template on the [download page](/Templates). After creating and downloading your project, follow the steps below to run your application.
 
--   Open your solution in **Visual Studio 2017 v15.3.5+** and **build**
+-   Open your solution in **Visual Studio 2019 (v16.4)+** and **build**
     the solution.
--   Select the '**Web.Mvc**' project as the startup project.
--   Check the **connection string** in the **appsettings.json** file of the Web.Mvc project, change it if you want.
+    
+- Select the '**Web.Mvc**' project as the startup project.
+
+- Check the **connection string** in the **appsettings.json** file of the Web.Mvc project, change it if you want.
+
 -   Open **Package Manager Console** and run the **Update-Database** command
     to create your database (ensure that the Default project is selected as
     **.EntityFrameworkCore** in the Package Manager Console window).
+    
+- To download and build the project’s client-side packages, we use **gulp**.
+
+  - **For development**:  
+    Open a terminal in the **Web.Mvc** folder and run:  
+    ```bash
+    npm run create-bundles
+    ```
+
+  - **For production**:  
+    Open a terminal in the **Web.Mvc** folder and run:  
+    ```bash
+    npm run build
+    ```
+
+  These commands will download the required client-side packages and generate the necessary bundles for the application.
+
+
 -   Run the application.
 
 If you have problems with running the application, please try closing and
@@ -19,13 +40,13 @@ restore.
 
 Once you run the application, you will see the following login page:
 
-<img src="../images/module-zero-core-template-ui-login.png" alt="Login Page" class="img-thumbnail" />
+<img src="../images/module-zero-core-template-ui-login-2.png" alt="Login Page" class="img-thumbnail" />
 
 The username is '**admin**' and the password is '**123qwe**' by default. There
 is also a "Default" tenant. After you login, you can see the
 sample dashboard page:
 
-<img src="../images/module-zero-core-template-ui-home.png" alt="Dashboard" class="img-thumbnail" />
+<img src="../images/module-zero-core-template-ui-home-2.png" alt="Dashboard" class="img-thumbnail" />
 
 #### About Multi-Tenancy
 
@@ -48,7 +69,7 @@ requests and responses.
 
 Just send a **POST** request to
 **http://localhost:62114/api/TokenAuth/Authenticate** with a
-**Context-Type="application/json"** header as shown below:
+**Content-Type="application/json"** header as shown below:
 
 <img src="../images/aspnet-core-token-auth.png" alt="Request for token" class="img-thumbnail" />
 
@@ -111,6 +132,20 @@ under the .Test project. You can check them and write similar tests
 easily. They are actually integration tests rather than unit tests,
 since they test your code with all the ASP.NET Boilerplate infrastructure
 (including validation, authorization, unit of work...).
+
+### Running on Docker
+
+The startup template includes necesary files for building docker images and running those images in docker.
+
+#### Building Docker images
+
+In order to build docker image, open the command prompt, go to `aspnet-core/build` folder and run `build-mvc.ps1` script. This script will build `abp/mvc` docker image.
+The default image is designed to use your local SQL Server, so don't foget to set `ConnectionStrings__Default` in `aspnet-core/docker/mvc/docker-compose.yml` before building the docker image. In order to connect your local SQL Server, you need to use your local IP address in the connection string. 
+A sample connection string is `ConnectionStrings__Default: "Server=192.168.1.42; Database=AbpProjectNameDb; User=sa; Password=123qwe;TrustServerCertificate=True;"`
+
+#### Running the project
+
+After creating the docker image, you can go to `aspnet-core/docker/mvc` folder and run `up.ps1` script to run the docker image.
 
 ### Source Code
 

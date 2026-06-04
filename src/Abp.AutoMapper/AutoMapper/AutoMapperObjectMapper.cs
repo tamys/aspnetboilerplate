@@ -1,25 +1,30 @@
-﻿using AutoMapper;
+using System.Linq;
+using AutoMapper;
 using IObjectMapper = Abp.ObjectMapping.IObjectMapper;
 
-namespace Abp.AutoMapper
+namespace Abp.AutoMapper;
+
+public class AutoMapperObjectMapper : IObjectMapper
 {
-    public class AutoMapperObjectMapper : IObjectMapper
+    protected readonly IMapper Mapper;
+
+    public AutoMapperObjectMapper(IMapper mapper)
     {
-        private readonly IMapper _mapper;
+        Mapper = mapper;
+    }
 
-        public AutoMapperObjectMapper(IMapper mapper)
-        {
-            _mapper = mapper;
-        }
+    public TDestination Map<TDestination>(object source)
+    {
+        return Mapper.Map<TDestination>(source);
+    }
 
-        public TDestination Map<TDestination>(object source)
-        {
-            return _mapper.Map<TDestination>(source);
-        }
+    public TDestination Map<TSource, TDestination>(TSource source, TDestination destination)
+    {
+        return Mapper.Map(source, destination);
+    }
 
-        public TDestination Map<TSource, TDestination>(TSource source, TDestination destination)
-        {
-            return _mapper.Map(source, destination);
-        }
+    public IQueryable<TDestination> ProjectTo<TDestination>(IQueryable source)
+    {
+        return Mapper.ProjectTo<TDestination>(source);
     }
 }

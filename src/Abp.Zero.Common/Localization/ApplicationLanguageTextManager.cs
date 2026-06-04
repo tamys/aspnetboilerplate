@@ -1,4 +1,6 @@
+using System.Collections.Generic;
 using System.Globalization;
+using System.Linq;
 using System.Threading.Tasks;
 using Abp.Dependency;
 using Abp.Domain.Repositories;
@@ -20,7 +22,7 @@ namespace Abp.Localization
         /// Initializes a new instance of the <see cref="ApplicationLanguageTextManager"/> class.
         /// </summary>
         public ApplicationLanguageTextManager(
-            ILocalizationManager localizationManager, 
+            ILocalizationManager localizationManager,
             IRepository<ApplicationLanguageText, long> applicationTextRepository,
             IUnitOfWorkManager unitOfWorkManager)
         {
@@ -51,6 +53,20 @@ namespace Abp.Localization
                 .GetStringOrNull(tenantId, key, culture, tryDefaults);
         }
 
+        public List<string> GetStringsOrNull(int? tenantId, string sourceName, CultureInfo culture, List<string> keys, bool tryDefaults = true)
+        {
+            var source = _localizationManager.GetSource(sourceName);
+
+            if (!(source is IMultiTenantLocalizationSource))
+            {
+                return source.GetStringsOrNull(keys, culture, tryDefaults);
+            }
+
+            return source
+                .As<IMultiTenantLocalizationSource>()
+                .GetStringsOrNull(tenantId, keys, culture, tryDefaults);
+        }
+
         /// <summary>
         /// Updates a localized string value.
         /// </summary>
@@ -59,39 +75,68 @@ namespace Abp.Localization
         /// <param name="culture">Culture</param>
         /// <param name="key">Localization key</param>
         /// <param name="value">New localized value.</param>
-        [UnitOfWork]
         public virtual async Task UpdateStringAsync(int? tenantId, string sourceName, CultureInfo culture, string key, string value)
         {
-            using (_unitOfWorkManager.Current.SetTenantId(tenantId))
+            await _unitOfWorkManager.WithUnitOfWorkAsync(async () =>
             {
-                var existingEntity = await _applicationTextRepository.FirstOrDefaultAsync(t =>
-                    t.Source == sourceName &&
-                    t.LanguageName == culture.Name &&
-                    t.Key == key
-                    );
-
-                if (existingEntity != null)
+                using (_unitOfWorkManager.Current.SetTenantId(tenantId))
                 {
-                    if (existingEntity.Value != value)
+                    var existingEntity = (await _applicationTextRepository.GetAllListAsync(t =>
+                            t.Source == sourceName &&
+                            t.LanguageName == culture.Name &&
+                            t.Key == key))
+                        .FirstOrDefault(t => t.Key == key);
+
+                    if (existingEntity != null)
                     {
-                        existingEntity.Value = value;
+                        if (existingEntity.Value != value)
+                        {
+                            existingEntity.Value = value;
+                            await _unitOfWorkManager.Current.SaveChangesAsync();
+                        }
+                    }
+                    else
+                    {
+                        await _applicationTextRepository.InsertAsync(
+                            new ApplicationLanguageText
+                            {
+                                TenantId = tenantId,
+                                Source = sourceName,
+                                LanguageName = culture.Name,
+                                Key = key,
+                                Value = value
+                            });
                         await _unitOfWorkManager.Current.SaveChangesAsync();
                     }
                 }
-                else
+            });
+        }
+
+        /// <summary>
+        /// Delete a localized string value for a tenant.
+        /// </summary>
+        /// <param name="tenantId">TenantId</param>
+        /// <param name="sourceName">Source name</param>
+        /// <param name="culture">Culture</param>
+        /// <param name="key">Localization key</param>
+        public virtual async Task DeleteStringAsync(int tenantId, string sourceName, CultureInfo culture, string key)
+        {
+            await _unitOfWorkManager.WithUnitOfWorkAsync(async () =>
+            {
+                using (_unitOfWorkManager.Current.SetTenantId(tenantId))
                 {
-                    await _applicationTextRepository.InsertAsync(
-                        new ApplicationLanguageText
-                        {
-                           TenantId = tenantId,
-                           Source = sourceName,
-                           LanguageName = culture.Name,
-                           Key = key,
-                           Value = value
-                        });
-                    await _unitOfWorkManager.Current.SaveChangesAsync();
+                    var existingEntity = (await _applicationTextRepository.GetAllListAsync(t =>
+                            t.Source == sourceName &&
+                            t.LanguageName == culture.Name &&
+                            t.Key == key))
+                        .FirstOrDefault(t => t.Key == key);
+
+                    if (existingEntity != null)
+                    {
+                        await _applicationTextRepository.DeleteAsync(existingEntity.Id);
+                    }
                 }
-            }
+            });
         }
     }
 }

@@ -65,7 +65,7 @@ for the module. Example:
     ...
     using Abp.Web.Configuration;
     ...
-    public override void PreInitialize() 
+    public override void PreInitialize()
     {
         Configuration.Modules.AbpWebCommon().SendAllExceptionsToClients = true;
     }
@@ -103,6 +103,7 @@ PreInitialize method:
 
     Configuration.Get<MyModuleConfig>().SampleConfig1 = false;
 
+#### Configuring using extension method 
 While we can use the IAbpStartupConfiguration.Get method as shown below, we
 can create an extension method to the IModuleConfigurations like this:
 
@@ -121,8 +122,9 @@ Now other modules can configure this module using the extension method:
 
 This makes it easy to investigate module configurations and collect them in
 a single place (Configuration.Modules...). ABP itself defines extension
-methods for it's own module configurations.
+methods for its own module configurations.
 
+#### Configuring using injection
 At some point, MyModule needs this configuration. You can inject
 MyModuleConfig and use the configured values. Example:
 

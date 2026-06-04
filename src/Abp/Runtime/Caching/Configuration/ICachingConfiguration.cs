@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using Abp.Configuration.Startup;
+using Microsoft.Extensions.Caching.Memory;
 
 namespace Abp.Runtime.Caching.Configuration
 {
@@ -20,13 +21,18 @@ namespace Abp.Runtime.Caching.Configuration
         IReadOnlyList<ICacheConfigurator> Configurators { get; }
 
         /// <summary>
+        /// Options for memory cache
+        /// </summary>
+        MemoryCacheOptions MemoryCacheOptions { get; set; }
+
+        /// <summary>
         /// Used to configure all caches.
         /// </summary>
         /// <param name="initAction">
         /// An action to configure caches
         /// This action is called for each cache just after created.
         /// </param>
-        void ConfigureAll(Action<ICache> initAction);
+        void ConfigureAll(Action<ICacheOptions> initAction);
 
         /// <summary>
         /// Used to configure a specific cache. 
@@ -36,6 +42,6 @@ namespace Abp.Runtime.Caching.Configuration
         /// An action to configure the cache.
         /// This action is called just after the cache is created.
         /// </param>
-        void Configure(string cacheName, Action<ICache> initAction);
+        void Configure(string cacheName, Action<ICacheOptions> initAction);
     }
 }

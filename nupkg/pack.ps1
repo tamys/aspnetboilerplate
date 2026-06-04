@@ -10,46 +10,40 @@ $projects = (
     "Abp.AspNetCore.OData",
     "Abp.AspNetCore.SignalR",
     "Abp.AspNetCore.TestBase",
+    "Abp.AspNetCore.PerRequestRedisCache",
     "Abp.AutoMapper",
+    "Abp.BlobStoring",
+    "Abp.BlobStoring.Azure",
+    "Abp.BlobStoring.FileSystem",
     "Abp.Castle.Log4Net",
     "Abp.Dapper",
     "Abp.EntityFramework",
     "Abp.EntityFramework.Common",
-    "Abp.EntityFramework.GraphDiff",
     "Abp.EntityFrameworkCore",
     "Abp.FluentMigrator",
-	"Abp.FluentValidation",
+    "Abp.FluentValidation",
     "Abp.HangFire",
     "Abp.HangFire.AspNetCore",
+    "Abp.HtmlSanitizer",
     "Abp.MailKit",
     "Abp.MemoryDb",
     "Abp.MongoDB",
     "Abp.NHibernate",
-    "Abp.Owin",
     "Abp.RedisCache",
     "Abp.RedisCache.ProtoBuf",
     "Abp.Quartz",
     "Abp.TestBase",
-    "Abp.Web",
-    "Abp.Web.Api",
-    "Abp.Web.Api.OData",
     "Abp.Web.Common",
-    "Abp.Web.Mvc",
-    "Abp.Web.SignalR",
     "Abp.Web.Resources",
-    "Abp.Zero",
-    "Abp.Zero.AspNetCore",
     "Abp.Zero.Common",
-    "Abp.Zero.EntityFramework",
-    "Abp.Zero.EntityFrameworkCore",
     "Abp.Zero.Ldap",
-    "Abp.Zero.NHibernate",
-    "Abp.Zero.Owin",
     "Abp.ZeroCore",
     "Abp.ZeroCore.EntityFramework",
     "Abp.ZeroCore.EntityFrameworkCore",
-    "Abp.ZeroCore.IdentityServer4",
-    "Abp.ZeroCore.IdentityServer4.EntityFrameworkCore"    
+    "Abp.ZeroCore.NHibernate",
+	"Abp.ZeroCore.OpenIddict",
+	"Abp.ZeroCore.OpenIddict.EntityFrameworkCore",
+	"Abp.AspNetCore.OpenIddict"
 )
 
 # Rebuild solution
@@ -63,14 +57,17 @@ foreach($project in $projects) {
 
     # Create nuget pack
     Set-Location $projectFolder
-    Remove-Item -Recurse (Join-Path $projectFolder "bin/Release")
-    & dotnet msbuild /p:Configuration=Release /p:SourceLinkCreate=true
-    & dotnet msbuild /t:pack /p:Configuration=Release /p:SourceLinkCreate=true
+    Get-ChildItem (Join-Path $projectFolder "bin/Release") -ErrorAction SilentlyContinue | Remove-Item -Recurse
+    & dotnet msbuild /p:Configuration=Release
+    & dotnet msbuild /p:Configuration=Release /t:pack /p:IncludeSymbols=true /p:SymbolPackageFormat=snupkg
 
     # Copy nuget package
     $projectPackPath = Join-Path $projectFolder ("/bin/Release/" + $project + ".*.nupkg")
     Move-Item $projectPackPath $packFolder
 
+	# Copy symbol package
+    $projectPackPath = Join-Path $projectFolder ("/bin/Release/" + $project + ".*.snupkg")
+    Move-Item $projectPackPath $packFolder
 }
 
 # Go back to the pack folder

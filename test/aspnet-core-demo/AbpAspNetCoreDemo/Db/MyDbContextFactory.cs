@@ -1,25 +1,19 @@
-﻿using System.IO;
+using Abp.EntityFrameworkCore.Extensions;
+using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Design;
-using Microsoft.Extensions.Configuration;
 
-namespace AbpAspNetCoreDemo.Db
+namespace AbpAspNetCoreDemo.Db;
+
+public class MyDbContextFactory : IDesignTimeDbContextFactory<MyDbContext>
 {
-    public class MyDbContextFactory : IDesignTimeDbContextFactory<MyDbContext>
+    public MyDbContext CreateDbContext(string[] args)
     {
-        public MyDbContext CreateDbContext(string[] args)
-        {
-            var builder = new ConfigurationBuilder()
-                .SetBasePath(Directory.GetCurrentDirectory()) //TODO: .SetBasePath(options.ContentRootPath) ???
-                .AddJsonFile("appsettings.json", optional: true, reloadOnChange: true)
-                .AddEnvironmentVariables();
-            var configuration = builder.Build();
+        var inMemorySqlite = new SqliteConnection("Data Source=:memory:");
+        var builder = new DbContextOptionsBuilder<MyDbContext>().UseSqlite(inMemorySqlite).AddAbpDbContextOptionsExtension();
 
-            var opts = new DbContextOptionsBuilder<MyDbContext>()
-                .UseSqlServer(configuration.GetConnectionString("Default"))
-                .Options;
+        var dbContext = new MyDbContext(builder.Options);
 
-            return new MyDbContext(opts);
-        }
+        return dbContext;
     }
 }
