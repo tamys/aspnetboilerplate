@@ -1,0 +1,7 @@
+{
+  "task_id": "task-create-abp-mapperly",
+  "task_description": "Create the Abp.Mapperly package as a new integration module for the Riok.Mapperly source generator, following the same structure and conventions as the existing Abp.AutoMapper package.",
+  "status": "in_progress",
+  "feature_order": ["FEAT-001"],
+  "blocked_reason": null
+}
