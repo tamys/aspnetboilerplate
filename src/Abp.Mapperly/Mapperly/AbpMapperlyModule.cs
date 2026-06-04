@@ -44,7 +44,7 @@ public class AbpMapperlyModule : AbpModule
             if (!IocManager.IsRegistered(mapperType))
             {
                 IocManager.IocContainer.Register(
-                    Component.For<IMapperlyMapper, object>()
+                    Component.For<IMapperlyMapper>()
                         .ImplementedBy(mapperType)
                         .LifestyleTransient()
                         .Named(mapperType.FullName)

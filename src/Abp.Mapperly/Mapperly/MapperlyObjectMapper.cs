@@ -8,10 +8,21 @@ namespace Abp.Mapperly;
 public class MapperlyObjectMapper : IObjectMapper
 {
     private readonly IIocManager _iocManager;
+    private IMapperlyMapper[] _mappers;
 
     public MapperlyObjectMapper(IIocManager iocManager)
     {
         _iocManager = iocManager;
+    }
+
+    private IMapperlyMapper[] GetMappers()
+    {
+        if (_mappers == null)
+        {
+            _mappers = _iocManager.ResolveAll<IMapperlyMapper>();
+        }
+
+        return _mappers;
     }
 
     public TDestination Map<TDestination>(object source)
@@ -24,22 +35,12 @@ public class MapperlyObjectMapper : IObjectMapper
         var sourceType = source.GetType();
         var destinationType = typeof(TDestination);
 
-        var mappers = _iocManager.ResolveAll<IMapperlyMapper>();
-        try
+        var mappers = GetMappers();
+        foreach (var mapper in mappers)
         {
-            foreach (var mapper in mappers)
+            if (mapper.CanMap(sourceType, destinationType))
             {
-                if (mapper.CanMap(sourceType, destinationType))
-                {
-                    return mapper.Map<TDestination>(source);
-                }
-            }
-        }
-        finally
-        {
-            foreach (var mapper in mappers)
-            {
-                _iocManager.Release(mapper);
+                return mapper.Map<TDestination>(source);
             }
         }
 
@@ -52,28 +53,18 @@ public class MapperlyObjectMapper : IObjectMapper
     {
         if (source == null)
         {
-            return default;
+            return destination;
         }
 
         var sourceType = typeof(TSource);
         var destinationType = typeof(TDestination);
 
-        var mappers = _iocManager.ResolveAll<IMapperlyMapper>();
-        try
+        var mappers = GetMappers();
+        foreach (var mapper in mappers)
         {
-            foreach (var mapper in mappers)
+            if (mapper.CanMap(sourceType, destinationType))
             {
-                if (mapper.CanMap(sourceType, destinationType))
-                {
-                    return mapper.Map<TSource, TDestination>(source, destination);
-                }
-            }
-        }
-        finally
-        {
-            foreach (var mapper in mappers)
-            {
-                _iocManager.Release(mapper);
+                return mapper.Map<TSource, TDestination>(source, destination);
             }
         }
 
@@ -92,22 +83,12 @@ public class MapperlyObjectMapper : IObjectMapper
         var destinationType = typeof(TDestination);
         var sourceType = source.ElementType;
 
-        var mappers = _iocManager.ResolveAll<IMapperlyMapper>();
-        try
+        var mappers = GetMappers();
+        foreach (var mapper in mappers)
         {
-            foreach (var mapper in mappers)
+            if (mapper.CanMap(sourceType, destinationType))
             {
-                if (mapper.CanMap(sourceType, destinationType))
-                {
-                    return mapper.ProjectTo<TDestination>(source);
-                }
-            }
-        }
-        finally
-        {
-            foreach (var mapper in mappers)
-            {
-                _iocManager.Release(mapper);
+                return mapper.ProjectTo<TDestination>(source);
             }
         }
 
