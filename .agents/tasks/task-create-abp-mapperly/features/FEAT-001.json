@@ -2,7 +2,7 @@
   "id": "FEAT-001",
   "type": "feat",
   "description": "Create the Abp.Mapperly package with all source files, project configuration, and solution integration. This includes the csproj, FodyWeavers, AssemblyInfo, configuration interfaces, module class, object mapper implementation, and solution file update.",
-  "status": "in_progress",
+  "status": "completed",
   "steps": [
     "Create directory structure: src/Abp.Mapperly/ and src/Abp.Mapperly/Mapperly/ and src/Abp.Mapperly/Properties/",
     "Create src/Abp.Mapperly/Abp.Mapperly.csproj following the pattern of src/Abp.AutoMapper/Abp.AutoMapper.csproj: target net10.0, import common.props and configureawait.props, reference Abp.csproj, add PackageReference to Riok.Mapperly version 4.1.1, set RootNamespace to Abp, set AssemblyName and PackageId to Abp.Mapperly, include GenerateDocumentationFile, disable auto-generated assembly attributes same as AutoMapper project, set Description to Abp.Mapperly, add PackageTags including mapperly and object mapper",
@@ -36,5 +36,5 @@
     "dotnet sln Abp.sln list | grep Abp.Mapperly"
   ],
   "blocked_reason": null,
-  "findings": ""
+  "findings": ".NET SDK was not pre-installed. Installed 10.0.300 via dotnet-install.sh (compatible with global.json rollForward:latestFeature). The dotnet sln add command expanded solution configuration platforms to include x64 and x86 in addition to the existing Any CPU - this is standard dotnet CLI behavior. Build succeeded with 0 errors (only pre-existing warnings from the Abp core project)."
 }
